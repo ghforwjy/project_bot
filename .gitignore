@@ -1,0 +1,57 @@
+# 临时文件和目录
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 数据库文件
+data/
+*.db
+*.sqlite
+
+# 环境文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.example
+
+# 依赖目录
+node_modules/
+venv/
+env/
+
+# 构建输出
+dist/
+build/
+
+# 日志文件
+*.log
+logs/
+
+# 编辑器和IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+Thumbs.db
+.DS_Store
+
+# 备份文件
+*.bak
+backup/
+history/
+
+# 测试相关
+.pytest_cache/
+
+# 其他临时文件
+*.tmp
+*.temp
+
+# 特定于项目的文件
+start.bat
+start.sh

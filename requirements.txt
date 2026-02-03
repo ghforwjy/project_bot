@@ -1,0 +1,20 @@
+# Web框架
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# 数据库
+sqlalchemy==2.0.23
+aiosqlite==0.19.0
+
+# 数据验证
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# HTTP客户端
+httpx==0.25.2
+
+# 环境变量
+python-dotenv==1.0.0
+
+# 工具库
+python-multipart==0.0.6
