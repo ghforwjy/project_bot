@@ -3,75 +3,34 @@ import { parseContent } from './contentParser'
 
 // 解析消息，统一处理不同格式的消息
 export const parseMessage = (msg: ChatMessage): ContentBlock[] => {
-  // 处理新的content_blocks格式
-  if (msg.content_blocks && msg.content_blocks.length > 0) {
-    return msg.content_blocks.map(block => {
-      // 检查是否是后端生成的旧格式content_block
-      if ('analysis' in block) {
-        const oldBlock = block as any
-        
-        // 检查analysis中是否包含确认信息
-        if (oldBlock.analysis && (oldBlock.analysis.includes('确认') || oldBlock.analysis.includes('是否') || oldBlock.analysis.includes('执行吗'))) {
-          return {
-            type: ContentType.CONFIRM,
-            content: oldBlock.analysis,
-            title: '确认信息'
-          }
-        } else if (oldBlock.analysis) {
-          return {
-            type: ContentType.ANALYSIS,
-            content: oldBlock.analysis,
-            title: '分析说明'
-          }
-        } else if (oldBlock.content) {
-          // 检查content内容类型
-          if (oldBlock.content.includes('确认') || oldBlock.content.includes('是否') || oldBlock.content.includes('执行吗')) {
-            return {
-              type: ContentType.CONFIRM,
-              content: oldBlock.content,
-              title: '确认信息'
-            }
-          } else if (oldBlock.content.includes('错误') || oldBlock.content.includes('失败') || oldBlock.content.includes('无法')) {
-            return {
-              type: ContentType.ERROR,
-              content: oldBlock.content,
-              title: '错误信息'
-            }
-          } else if ((oldBlock.content.includes('分析') || oldBlock.content.includes('统计') || oldBlock.content.includes('总结')) && 
-                     !(oldBlock.content.includes('项目大类') || oldBlock.content.includes('项目列表'))) {
-            return {
-              type: ContentType.ANALYSIS,
-              content: oldBlock.content,
-              title: '分析说明'
-            }
-          } else {
-            return {
-              type: ContentType.MAIN,
-              content: oldBlock.content,
-              title: '正文内容'
-            }
-          }
-        } else {
-          return {
-            type: ContentType.MAIN,
-            content: JSON.stringify(oldBlock, null, 2),
-            title: '内容'
-          }
-        }
-      } else {
-        // 新格式的content_block
-        return {
-          type: block.type || ContentType.MAIN,
-          content: block.content,
-          title: block.title
-        }
-      }
-    })
-  }
-  
-  // 处理纯content格式
+  // 优先使用content字段进行解析，确保实时聊天和历史数据使用相同的解析逻辑
   if (msg.content) {
     return parseContent(msg.content)
+  }
+  
+  // 只有当content字段为空时，才使用content_blocks
+  if (msg.content_blocks && msg.content_blocks.length > 0) {
+    return msg.content_blocks.map(block => {
+      // 直接使用block的content进行解析
+      if (block.content) {
+        // 解析block的content内容
+        const blocks = parseContent(block.content)
+        if (blocks.length > 0) {
+          return {
+            type: blocks[0].type,
+            content: blocks[0].content,
+            title: blocks[0].title
+          }
+        }
+      }
+      
+      // 默认处理
+      return {
+        type: block.type || ContentType.MAIN,
+        content: block.content || '',
+        title: block.title || '正文内容'
+      }
+    })
   }
   
   // 空消息处理

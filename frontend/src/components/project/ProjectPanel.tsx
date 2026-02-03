@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Tabs, Table, Tag, Progress, Button, Radio, Space, Input, Select, message, Dropdown, Menu, Modal, Form, Input as AntInput, DatePicker } from 'antd'
 import { ProjectOutlined, UnorderedListOutlined, BarChartOutlined, ReloadOutlined, CheckOutlined, CloseOutlined, PlusOutlined, DownOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
@@ -45,6 +45,10 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
   const [projectDetailModalVisible, setProjectDetailModalVisible] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
   const [taskForm] = Form.useForm()
+  const [taskModalWidth, setTaskModalWidth] = useState<number>(600)
+  const [taskModalHeight, setTaskModalHeight] = useState<number>(500)
+  const [isTaskModalResizing, setIsTaskModalResizing] = useState<boolean>(false)
+  const taskModalRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
   // 获取项目列表
@@ -181,6 +185,48 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
     taskForm.resetFields()
     setTaskModalVisible(true)
   }
+
+  // 处理TaskModal鼠标按下事件，开始调整大小
+  const handleTaskModalResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsTaskModalResizing(true)
+  }
+
+  // 处理TaskModal鼠标移动事件，调整大小
+  const handleTaskModalResizeMove = (e: MouseEvent) => {
+    if (!isTaskModalResizing || !taskModalRef.current) return
+
+    const modal = taskModalRef.current
+    const rect = modal.getBoundingClientRect()
+    const newWidth = e.clientX - rect.left
+    const newHeight = e.clientY - rect.top
+
+    // 设置最小宽度和高度
+    if (newWidth > 500) {
+      setTaskModalWidth(newWidth)
+    }
+    if (newHeight > 300) {
+      setTaskModalHeight(newHeight)
+    }
+  }
+
+  // 处理TaskModal鼠标释放事件，结束调整大小
+  const handleTaskModalResizeEnd = () => {
+    setIsTaskModalResizing(false)
+  }
+
+  // 添加和移除TaskModal鼠标事件监听器
+  useEffect(() => {
+    if (isTaskModalResizing) {
+      document.addEventListener('mousemove', handleTaskModalResizeMove)
+      document.addEventListener('mouseup', handleTaskModalResizeEnd)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleTaskModalResizeMove)
+      document.removeEventListener('mouseup', handleTaskModalResizeEnd)
+    }
+  }, [isTaskModalResizing])
 
   // 表格列定义
   const columns = [
@@ -328,88 +374,124 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
 
   // 增加任务模态框
   const TaskModal = () => (
-    <Modal
-      title="增加任务"
-      open={taskModalVisible}
-      onCancel={() => setTaskModalVisible(false)}
-      footer={null}
-    >
-      <Form
-        form={taskForm}
-        layout="vertical"
-        onFinish={(values) => {
-          if (currentProjectId) {
-            createTaskMutation.mutate({ projectId: currentProjectId, data: values })
-          }
+    <div ref={taskModalRef}>
+      <Modal
+        title="增加任务"
+        open={taskModalVisible}
+        onCancel={() => setTaskModalVisible(false)}
+        footer={null}
+        width={taskModalWidth}
+        height={taskModalHeight}
+        draggable
+        style={{
+          height: taskModalHeight ? `${taskModalHeight}px` : 'auto'
         }}
       >
-        <Form.Item
-          name="name"
-          label="任务名称"
-          rules={[{ required: true, message: '请输入任务名称' }]}
+        <Form
+          form={taskForm}
+          layout="vertical"
+          onFinish={(values) => {
+            if (currentProjectId) {
+              createTaskMutation.mutate({ projectId: currentProjectId, data: values })
+            }
+          }}
         >
-          <AntInput placeholder="请输入任务名称" />
-        </Form.Item>
-        
-        <Form.Item
-          name="description"
-          label="任务描述"
+          <Form.Item
+            name="name"
+            label="任务名称"
+            rules={[{ required: true, message: '请输入任务名称' }]}
+          >
+            <AntInput placeholder="请输入任务名称" />
+          </Form.Item>
+          
+          <Form.Item
+            name="description"
+            label="任务描述"
+          >
+            <AntInput.TextArea rows={3} placeholder="请输入任务描述" />
+          </Form.Item>
+          
+          <Form.Item
+            name="assignee"
+            label="负责人"
+          >
+            <AntInput placeholder="请输入负责人" />
+          </Form.Item>
+          
+          <Form.Item
+            name="priority"
+            label="优先级"
+            initialValue={2}
+          >
+            <Select placeholder="请选择优先级">
+              <Select.Option value={1}>高</Select.Option>
+              <Select.Option value={2}>中</Select.Option>
+              <Select.Option value={3}>低</Select.Option>
+            </Select>
+          </Form.Item>
+          
+          <Form.Item
+            name="planned_start_date"
+            label="计划开始日期"
+          >
+            <DatePicker style={{ width: '100%' }} placeholder="请选择计划开始日期" />
+          </Form.Item>
+          
+          <Form.Item
+            name="planned_end_date"
+            label="计划结束日期"
+          >
+            <DatePicker style={{ width: '100%' }} placeholder="请选择计划结束日期" />
+          </Form.Item>
+          
+          <Form.Item
+            name="deliverable"
+            label="交付物"
+          >
+            <AntInput.TextArea rows={2} placeholder="请输入交付物" />
+          </Form.Item>
+          
+          <Form.Item>
+            <Space style={{ float: 'right' }}>
+              <Button onClick={() => setTaskModalVisible(false)}>
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit">
+                提交
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+
+        {/* 调整大小的手柄 */}
+        <div 
+          className="absolute bottom-0 right-0 w-6 h-6 bg-gray-300 cursor-se-resize flex items-center justify-center"
+          onMouseDown={handleTaskModalResizeStart}
+          style={{
+            position: 'absolute',
+            bottom: '16px',
+            right: '16px',
+            width: '24px',
+            height: '24px',
+            backgroundColor: '#f0f0f0',
+            border: '1px solid #d9d9d9',
+            borderRadius: '4px',
+            cursor: 'se-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
         >
-          <AntInput.TextArea rows={3} placeholder="请输入任务描述" />
-        </Form.Item>
-        
-        <Form.Item
-          name="assignee"
-          label="负责人"
-        >
-          <AntInput placeholder="请输入负责人" />
-        </Form.Item>
-        
-        <Form.Item
-          name="priority"
-          label="优先级"
-          initialValue={2}
-        >
-          <Select placeholder="请选择优先级">
-            <Select.Option value={1}>高</Select.Option>
-            <Select.Option value={2}>中</Select.Option>
-            <Select.Option value={3}>低</Select.Option>
-          </Select>
-        </Form.Item>
-        
-        <Form.Item
-          name="planned_start_date"
-          label="计划开始日期"
-        >
-          <DatePicker style={{ width: '100%' }} placeholder="请选择计划开始日期" />
-        </Form.Item>
-        
-        <Form.Item
-          name="planned_end_date"
-          label="计划结束日期"
-        >
-          <DatePicker style={{ width: '100%' }} placeholder="请选择计划结束日期" />
-        </Form.Item>
-        
-        <Form.Item
-          name="deliverable"
-          label="交付物"
-        >
-          <AntInput.TextArea rows={2} placeholder="请输入交付物" />
-        </Form.Item>
-        
-        <Form.Item>
-          <Space style={{ float: 'right' }}>
-            <Button onClick={() => setTaskModalVisible(false)}>
-              取消
-            </Button>
-            <Button type="primary" htmlType="submit">
-              提交
-            </Button>
-          </Space>
-        </Form.Item>
-      </Form>
-    </Modal>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRight: '2px solid #999',
+            borderBottom: '2px solid #999'
+          }} />
+        </div>
+      </Modal>
+    </div>
   )
 
   return (

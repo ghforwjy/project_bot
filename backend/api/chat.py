@@ -164,7 +164,7 @@ def extract_first_instruction(ai_content: str) -> Dict[str, Any]:
 @router.get("/chat/history", response_model=ResponseModel)
 async def get_chat_history(
     session_id: Optional[str] = None,
-    limit: int = 50,
+    limit: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """获取对话历史"""
@@ -173,7 +173,14 @@ async def get_chat_history(
     if session_id:
         query = query.filter(Conversation.session_id == session_id)
     
-    messages = query.order_by(Conversation.timestamp.asc()).limit(limit).all()
+    # 按时间升序排列
+    query = query.order_by(Conversation.timestamp.asc())
+    
+    # 只有当limit不为None时才使用限制
+    if limit is not None:
+        messages = query.limit(limit).all()
+    else:
+        messages = query.all()
     
     return ResponseModel(
         data={
@@ -553,20 +560,16 @@ async def send_message(
         ai_content += f"4. 跟踪项目进度\n\n"
         ai_content += f"错误信息: {str(e)}"
     
-    # 解析AI回复，分离分析部分和正文部分（返回多个block）
-    content_blocks = split_ai_content(ai_content)
-    
-    # 获取第一个block用于保存到数据库（向后兼容）
-    first_block = content_blocks[0] if content_blocks else {}
-    main_content = first_block.get('content', ai_content)
-    main_analysis = first_block.get('analysis', '')
+    # 直接使用AI回复的原始内容，不进行分块处理
+    main_content = ai_content
+    main_analysis = None
     
     # 保存AI回复
     ai_message = Conversation(
         session_id=session_id,
         role="assistant",
         content=main_content,
-        analysis=main_analysis if main_analysis else None,
+        analysis=main_analysis,
         timestamp=datetime.now()
     )
     db.add(ai_message)
@@ -575,9 +578,10 @@ async def send_message(
     
     # 检查请求是否仍然是最新的（可能被新请求替换了）
     if not session_manager.is_cancelled(session_id, request_id):
-        # 请求仍然有效，更新消息元数据
+        # 请求仍然有效，更新消息元数据为原始内容
         import json
-        ai_message.message_metadata = json.dumps(content_blocks, ensure_ascii=False)
+        # 保存原始内容，不进行分块处理
+        ai_message.message_metadata = json.dumps([{"content": ai_content}], ensure_ascii=False)
         db.commit()
     else:
         # 请求已过时，删除刚创建的消息
@@ -600,7 +604,7 @@ async def send_message(
             "role": "assistant",
             "content": main_content,
             "analysis": main_analysis,
-            "content_blocks": content_blocks,  # 所有blocks
+            "content_blocks": [{"content": ai_content}],  # 保持与消息元数据格式一致
             "timestamp": ai_message.timestamp.isoformat()
         }
     )

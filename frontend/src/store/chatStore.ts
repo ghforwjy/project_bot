@@ -83,22 +83,15 @@ export const useChatStore = create<ChatState>((set) => ({
       
       if (result.code === 200 && result.data?.items) {
         const messages = result.data.items.map((item: any) => {
-          // 从message_metadata解析content_blocks
-          let contentBlocks = null
-          if (item.message_metadata) {
-            try {
-              contentBlocks = JSON.parse(item.message_metadata)
-            } catch (e) {
-              console.error('解析message_metadata失败:', e)
-            }
-          }
-          
+          // 不再从message_metadata解析content_blocks
+          // 让parseMessage函数统一使用content字段解析
+          // 确保历史消息和实时消息使用相同的解析逻辑
           return {
             id: item.id,
             role: item.role,
             content: item.content,
             analysis: item.analysis,
-            content_blocks: contentBlocks,
+            content_blocks: undefined, // 不设置content_blocks，强制使用content字段
             timestamp: new Date(item.timestamp)
           }
         })

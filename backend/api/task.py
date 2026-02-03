@@ -44,10 +44,6 @@ def calculate_task_progress(task: Task) -> float:
     """计算任务进度"""
     from datetime import datetime
     
-    # 如果已有进度，直接返回
-    if task.progress > 0:
-        return task.progress
-    
     # 根据实际开始和结束日期计算进度
     if task.actual_end_date:
         return 100.0
@@ -119,8 +115,11 @@ async def update_task(
     # 处理日期字段
     date_fields = ['planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date']
     for field in date_fields:
-        if field in update_data and update_data[field]:
-            update_data[field] = datetime.fromisoformat(update_data[field])
+        if field in update_data:
+            if update_data[field]:
+                update_data[field] = datetime.fromisoformat(update_data[field])
+            else:
+                update_data[field] = None
     
     for key, value in update_data.items():
         # 跳过进度字段，始终自动计算

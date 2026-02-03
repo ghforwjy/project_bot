@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
-import { Modal, Card, Table, Tag, Progress, Spin, Empty, Descriptions, Input, InputNumber, Select, DatePicker, message, Space, Button } from 'antd'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { Card, Table, Tag, Progress, Spin, Empty, Descriptions, Input, InputNumber, Select, DatePicker, message, Space, Button } from 'antd'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined, DragOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { projectService } from '../../services/projectService'
 
@@ -57,7 +57,18 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
   const [editingTaskData, setEditingTaskData] = useState<any>({})
   
-  // 获取项目详情
+  const [windowPosition, setWindowPosition] = useState({ x: 0, y: 0 })
+  const [windowSize, setWindowSize] = useState({ width: 1000, height: 600 })
+  
+  const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const [resizeDirection, setResizeDirection] = useState<string>('se')
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, mouseX: 0, mouseY: 0 })
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, mouseX: 0, mouseY: 0 })
+  
+  const windowRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  
   const { data: project, isLoading } = useQuery<ProjectDetail>({
     queryKey: ['project', projectId],
     queryFn: async () => {
@@ -69,9 +80,15 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     enabled: !!projectId && visible
   })
   
-  // 开始编辑任务
+  useEffect(() => {
+    if (visible && !isDragging && !isResizing) {
+      const centerX = window.innerWidth / 2 - 500
+      const centerY = window.innerHeight / 2 - 300
+      setWindowPosition({ x: centerX, y: centerY })
+    }
+  }, [visible])
+  
   const startEditing = (task: Task) => {
-    // 转换日期字符串为Dayjs对象
     const taskWithDayjsDates = {
       ...task,
       planned_start_date: task.planned_start_date ? dayjs(task.planned_start_date) : null,
@@ -83,29 +100,135 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     setEditingTaskData(taskWithDayjsDates)
   }
   
-  // 取消编辑
   const cancelEditing = () => {
     setEditingTaskId(null)
     setEditingTaskData({})
   }
   
-  // 保存编辑
   const saveEditing = (taskId: number) => {
     if (projectId) {
       updateTaskMutation.mutate({ projectId, taskId, data: editingTaskData })
     }
   }
   
-  // 更新任务的mutation
+  const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    setIsDragging(true)
+    setDragStart({
+      x: windowPosition.x,
+      y: windowPosition.y,
+      mouseX: e.clientX,
+      mouseY: e.clientY
+    })
+  }, [windowPosition])
+  
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent, direction: string) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsResizing(true)
+    setResizeDirection(direction)
+    setResizeStart({
+      x: windowPosition.x,
+      y: windowPosition.y,
+      width: windowSize.width,
+      height: windowSize.height,
+      mouseX: e.clientX,
+      mouseY: e.clientY
+    })
+  }, [windowPosition, windowSize])
+  
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      const deltaX = e.clientX - dragStart.mouseX
+      const deltaY = e.clientY - dragStart.mouseY
+      setWindowPosition({
+        x: dragStart.x + deltaX,
+        y: dragStart.y + deltaY
+      })
+    }
+    
+    if (isResizing) {
+      const deltaX = e.clientX - resizeStart.mouseX
+      const deltaY = e.clientY - resizeStart.mouseY
+      
+      let newX = resizeStart.x
+      let newY = resizeStart.y
+      let newWidth = resizeStart.width
+      let newHeight = resizeStart.height
+      
+      switch (resizeDirection) {
+        case 'n':
+          newY = Math.max(0, resizeStart.y + deltaY)
+          newHeight = Math.max(400, Math.min(1200, resizeStart.height - deltaY))
+          break
+        case 's':
+          newHeight = Math.max(400, Math.min(1200, resizeStart.height + deltaY))
+          break
+        case 'w':
+          newX = Math.max(0, resizeStart.x + deltaX)
+          newWidth = Math.max(800, Math.min(2000, resizeStart.width - deltaX))
+          break
+        case 'e':
+          newWidth = Math.max(800, Math.min(2000, resizeStart.width + deltaX))
+          break
+        case 'nw':
+          newX = Math.max(0, resizeStart.x + deltaX)
+          newY = Math.max(0, resizeStart.y + deltaY)
+          newWidth = Math.max(800, Math.min(2000, resizeStart.width - deltaX))
+          newHeight = Math.max(400, Math.min(1200, resizeStart.height - deltaY))
+          break
+        case 'ne':
+          newY = Math.max(0, resizeStart.y + deltaY)
+          newWidth = Math.max(800, Math.min(2000, resizeStart.width + deltaX))
+          newHeight = Math.max(400, Math.min(1200, resizeStart.height - deltaY))
+          break
+        case 'sw':
+          newX = Math.max(0, resizeStart.x + deltaX)
+          newWidth = Math.max(800, Math.min(2000, resizeStart.width - deltaX))
+          newHeight = Math.max(400, Math.min(1200, resizeStart.height + deltaY))
+          break
+        case 'se':
+          newWidth = Math.max(800, Math.min(2000, resizeStart.width + deltaX))
+          newHeight = Math.max(400, Math.min(1200, resizeStart.height + deltaY))
+          break
+      }
+      
+      setWindowPosition({ x: newX, y: newY })
+      setWindowSize({ width: newWidth, height: newHeight })
+    }
+  }, [isDragging, isResizing, dragStart, resizeStart, resizeDirection])
+  
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+    setIsResizing(false)
+  }, [])
+  
+  useEffect(() => {
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = isDragging ? 'move' : 'se-resize'
+      document.body.style.userSelect = 'none'
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isDragging, isResizing, handleMouseMove, handleMouseUp])
+  
   const updateTaskMutation = useMutation({
     mutationFn: async ({ projectId, taskId, data }: { projectId: number; taskId: number; data: any }) => {
-      // 转换日期格式
       const formattedData = {
         ...data,
-        planned_start_date: data.planned_start_date ? data.planned_start_date.format('YYYY-MM-DD') : undefined,
-        planned_end_date: data.planned_end_date ? data.planned_end_date.format('YYYY-MM-DD') : undefined,
-        actual_start_date: data.actual_start_date ? data.actual_start_date.format('YYYY-MM-DD') : undefined,
-        actual_end_date: data.actual_end_date ? data.actual_end_date.format('YYYY-MM-DD') : undefined
+        planned_start_date: data.planned_start_date ? data.planned_start_date.format('YYYY-MM-DD') : null,
+        planned_end_date: data.planned_end_date ? data.planned_end_date.format('YYYY-MM-DD') : null,
+        actual_start_date: data.actual_start_date ? data.actual_start_date.format('YYYY-MM-DD') : null,
+        actual_end_date: data.actual_end_date ? data.actual_end_date.format('YYYY-MM-DD') : null
       }
       return await projectService.updateTask(projectId, taskId, formattedData)
     },
@@ -113,7 +236,6 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       message.success('任务更新成功')
       setEditingTaskId(null)
       setEditingTaskData({})
-      // 失效项目详情查询
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: ['project', projectId] })
       }
@@ -122,8 +244,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       message.error('任务更新失败')
     }
   })
-
-  // 任务列定义
+  
   const taskColumns = [
     {
       title: '任务名称',
@@ -188,6 +309,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
             <DatePicker
               value={editingTaskData.planned_start_date}
               onChange={(date) => setEditingTaskData({ ...editingTaskData, planned_start_date: date })}
+              allowClear
               style={{ width: '100%' }}
             />
           )
@@ -206,6 +328,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
             <DatePicker
               value={editingTaskData.planned_end_date}
               onChange={(date) => setEditingTaskData({ ...editingTaskData, planned_end_date: date })}
+              allowClear
               style={{ width: '100%' }}
             />
           )
@@ -224,6 +347,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
             <DatePicker
               value={editingTaskData.actual_start_date}
               onChange={(date) => setEditingTaskData({ ...editingTaskData, actual_start_date: date })}
+              allowClear
               style={{ width: '100%' }}
             />
           )
@@ -242,6 +366,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
             <DatePicker
               value={editingTaskData.actual_end_date}
               onChange={(date) => setEditingTaskData({ ...editingTaskData, actual_end_date: date })}
+              allowClear
               style={{ width: '100%' }}
             />
           )
@@ -361,84 +486,213 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       }
     }
   ]
-
+  
+  if (!visible) return null
+  
   if (isLoading) {
     return (
-      <Modal
-        title="项目详情"
-        open={visible}
-        onCancel={onClose}
-        footer={null}
-        width={1000}
-        draggable
-      >
-        <div className="flex items-center justify-center py-10">
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1000 }}>
+        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px' }}>
           <Spin tip="加载中..." />
         </div>
-      </Modal>
+      </div>
     )
   }
-
+  
   if (!project) {
     return (
-      <Modal
-        title="项目详情"
-        open={visible}
-        onCancel={onClose}
-        footer={null}
-        width={1000}
-        draggable
-      >
-        <div className="flex items-center justify-center py-10">
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1000 }}>
+        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px' }}>
           <Empty description="项目不存在" />
+          <Button onClick={onClose} style={{ marginTop: '16px' }}>关闭</Button>
         </div>
-      </Modal>
+      </div>
     )
   }
-
+  
   return (
-    <Modal
-      title="项目详情"
-      open={visible}
-      onCancel={onClose}
-      footer={null}
-      width={1000}
-      draggable
-    >
-      {/* 项目信息卡片 */}
-      <Card title="项目信息" className="mb-4">
-        <Descriptions bordered size="small" column={2}>
-          <Descriptions.Item label="项目名称">{project.name}</Descriptions.Item>
-          <Descriptions.Item label="项目大类">{project.category_name || '-'}</Descriptions.Item>
-          <Descriptions.Item label="描述">{project.description || '-'}</Descriptions.Item>
-          <Descriptions.Item label="状态">
-            <Tag color={statusMap[project.status]?.color}>
-              {statusMap[project.status]?.text}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="总体进度">
-            <Progress percent={Math.round(project.progress)} size="small" className="w-32" />
-          </Descriptions.Item>
-          <Descriptions.Item label="项目周期">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <CalendarOutlined />
-              <span>{project.start_date} ~ {project.end_date}</span>
-            </div>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div 
+        ref={windowRef}
+        style={{
+          position: 'absolute',
+          left: windowPosition.x,
+          top: windowPosition.y,
+          width: windowSize.width,
+          height: windowSize.height,
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          zIndex: 1001
+        }}
+      >
+        {/* 窗口标题栏 */}
+        <div 
+          ref={headerRef}
+          onMouseDown={handleHeaderMouseDown}
+          style={{
+            height: '48px',
+            backgroundColor: '#f0f0f0',
+            borderBottom: '1px solid #e8e8e8',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            cursor: 'move',
+            userSelect: 'none'
+          }}
+        >
+          <DragOutlined style={{ marginRight: '8px' }} />
+          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>项目详情</h3>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            <Button 
+              icon={<CloseCircleOutlined />} 
+              size="small" 
+              type="text" 
+              onClick={onClose}
+              style={{ marginLeft: '8px' }}
+            />
+          </div>
+        </div>
+        
+        {/* 窗口内容 */}
+        <div style={{ flex: 1, padding: '16px', overflow: 'auto' }}>
+          <Card title="项目信息" className="mb-4">
+            <Descriptions bordered size="small" column={2}>
+              <Descriptions.Item label="项目名称">{project.name}</Descriptions.Item>
+              <Descriptions.Item label="项目大类">{project.category_name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="描述">{project.description || '-'}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                <Tag color={statusMap[project.status]?.color}>
+                  {statusMap[project.status]?.text}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="总体进度">
+                <Progress percent={Math.round(project.progress)} size="small" className="w-32" />
+              </Descriptions.Item>
+              <Descriptions.Item label="项目周期">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <CalendarOutlined />
+                  <span>{project.start_date} ~ {project.end_date}</span>
+                </div>
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
 
-      {/* 任务列表 */}
-      <Card title="任务列表" className="mb-4">
-        <Table
-          columns={taskColumns}
-          dataSource={project.tasks || []}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-          scroll={{ x: 1200 }}
+          <Card title="任务列表">
+            <Table
+              columns={taskColumns}
+              dataSource={project.tasks || []}
+              rowKey="id"
+              pagination={{ pageSize: 5 }}
+              scroll={{ x: 1200 }}
+            />
+          </Card>
+        </div>
+        
+        {/* 调整大小的手柄 - 四个角 */}
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
+          style={{
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '8px',
+            height: '8px',
+            cursor: 'nwse-resize',
+            backgroundColor: 'transparent'
+          }}
         />
-      </Card>
-    </Modal>
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
+          style={{
+            position: 'absolute',
+            top: '0',
+            right: '0',
+            width: '8px',
+            height: '8px',
+            cursor: 'nesw-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
+          style={{
+            position: 'absolute',
+            bottom: '0',
+            left: '0',
+            width: '8px',
+            height: '8px',
+            cursor: 'nesw-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
+          style={{
+            position: 'absolute',
+            bottom: '0',
+            right: '0',
+            width: '8px',
+            height: '8px',
+            cursor: 'nwse-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+        
+        {/* 调整大小的手柄 - 四个边 */}
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'n')}
+          style={{
+            position: 'absolute',
+            top: '0',
+            left: '8px',
+            right: '8px',
+            height: '4px',
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 's')}
+          style={{
+            position: 'absolute',
+            bottom: '0',
+            left: '8px',
+            right: '8px',
+            height: '4px',
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'w')}
+          style={{
+            position: 'absolute',
+            left: '0',
+            top: '8px',
+            bottom: '8px',
+            width: '4px',
+            cursor: 'ew-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+        <div 
+          onMouseDown={(e) => handleResizeMouseDown(e, 'e')}
+          style={{
+            position: 'absolute',
+            right: '0',
+            top: '8px',
+            bottom: '8px',
+            width: '4px',
+            cursor: 'ew-resize',
+            backgroundColor: 'transparent'
+          }}
+        />
+      </div>
+    </div>
   )
 }
 

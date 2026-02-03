@@ -89,6 +89,18 @@ const ChatPanel: React.FC = () => {
           setThinkingSteps(realProgressSteps)
         }
         
+        // 更新会话ID为后端返回的session_id，确保会话一致性
+        if (result.data.session_id && result.data.session_id !== sessionId) {
+          // 先保存当前消息列表
+          const currentMessages = [...messages]
+          // 更新会话ID
+          setSessionId(result.data.session_id)
+          // 延迟加载历史消息，确保后端已保存消息
+          setTimeout(() => {
+            loadHistory(result.data.session_id)
+          }, 100)
+        }
+        
         addMessage({
           id: result.data.message_id,
           role: 'assistant',

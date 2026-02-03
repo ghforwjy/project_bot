@@ -132,12 +132,12 @@ class SessionManager:
         """
         with self._lock:
             if session_id not in self._sessions:
-                return True  # 会话不存在，视为取消
+                return False  # 会话不存在，不视为取消
             
             session_paths = self._sessions[session_id]
             
             if path not in session_paths:
-                return True  # 路径不存在，视为取消
+                return False  # 路径不存在，不视为取消
             
             state = session_paths[path]
             
