@@ -17,10 +17,41 @@ export const parseContent = (content: string): ContentBlock[] => {
     if (codeStart > lastIndex) {
       const mainContent = content.substring(lastIndex, codeStart).trim()
       if (mainContent) {
-        blocks.push({
-          type: ContentType.MAIN,
-          content: mainContent
-        })
+        // 检测内容类型
+        const contentType = detectContentType(mainContent)
+        
+        // 检查是否包含分析结果标记
+        if (mainContent.includes('分析结果:')) {
+          blocks.push({
+            type: ContentType.ANALYSIS,
+            content: mainContent,
+            title: '分析结果'
+          })
+        } else if (mainContent.includes('操作结果:')) {
+          // 检查是否同时包含确认信息
+          if (contentType === ContentType.CONFIRM) {
+            blocks.push({
+              type: ContentType.CONFIRM,
+              content: mainContent,
+              title: '确认信息'
+            })
+          } else {
+            blocks.push({
+              type: ContentType.MAIN,
+              content: mainContent,
+              title: '操作结果'
+            })
+          }
+        } else {
+          blocks.push({
+            type: contentType,
+            content: mainContent,
+            title: contentType === ContentType.ANALYSIS ? '分析说明' :
+                   contentType === ContentType.ERROR ? '错误信息' :
+                   contentType === ContentType.CONFIRM ? '确认信息' :
+                   '正文内容'
+          })
+        }
       }
     }
     
@@ -32,7 +63,7 @@ export const parseContent = (content: string): ContentBlock[] => {
     blocks.push({
       type: ContentType.DATA,
       content: codeContent,
-      title: '数据内容'
+      title: '数据详情'
     })
     
     lastIndex = codeEnd
@@ -42,6 +73,9 @@ export const parseContent = (content: string): ContentBlock[] => {
   if (lastIndex < content.length) {
     const remainingContent = content.substring(lastIndex).trim()
     if (remainingContent) {
+      // 检测内容类型
+      const contentType = detectContentType(remainingContent)
+      
       // 检查是否包含分析结果标记
       if (remainingContent.includes('分析结果:')) {
         blocks.push({
@@ -49,10 +83,29 @@ export const parseContent = (content: string): ContentBlock[] => {
           content: remainingContent,
           title: '分析结果'
         })
+      } else if (remainingContent.includes('操作结果:')) {
+        // 检查是否同时包含确认信息
+        if (contentType === ContentType.CONFIRM) {
+          blocks.push({
+            type: ContentType.CONFIRM,
+            content: remainingContent,
+            title: '确认信息'
+          })
+        } else {
+          blocks.push({
+            type: ContentType.MAIN,
+            content: remainingContent,
+            title: '操作结果'
+          })
+        }
       } else {
         blocks.push({
-          type: ContentType.MAIN,
-          content: remainingContent
+          type: contentType,
+          content: remainingContent,
+          title: contentType === ContentType.ANALYSIS ? '分析说明' :
+                 contentType === ContentType.ERROR ? '错误信息' :
+                 contentType === ContentType.CONFIRM ? '确认信息' :
+                 '正文内容'
         })
       }
     }
@@ -60,9 +113,15 @@ export const parseContent = (content: string): ContentBlock[] => {
   
   // 如果没有任何块，将整个内容作为正文
   if (blocks.length === 0) {
+    const contentType = detectContentType(content)
     blocks.push({
-      type: ContentType.MAIN,
-      content: content
+      type: contentType,
+      content: content,
+      title: contentType === ContentType.ANALYSIS ? '分析说明' :
+             contentType === ContentType.DATA ? '数据详情' :
+             contentType === ContentType.ERROR ? '错误信息' :
+             contentType === ContentType.CONFIRM ? '确认信息' :
+             '正文内容'
     })
   }
   
@@ -101,13 +160,18 @@ export const detectContentType = (content: string): ContentType => {
     JSON.parse(content)
     return ContentType.DATA
   } catch {
-    // 检查是否为分析内容
-    if (content.includes('分析') || content.includes('统计') || content.includes('总结')) {
-      return ContentType.ANALYSIS
+    // 检查是否为确认信息（优先级最高）
+    if (content.includes('确认') || content.includes('是否') || content.includes('执行吗')) {
+      return ContentType.CONFIRM
     }
     // 检查是否为错误信息
     if (content.includes('错误') || content.includes('失败') || content.includes('无法')) {
       return ContentType.ERROR
+    }
+    // 检查是否为分析内容
+    if (content.includes('分析') && 
+        !(content.includes('操作结果:') || content.includes('项目大类') || content.includes('项目列表'))) {
+      return ContentType.ANALYSIS
     }
     // 默认视为正文
     return ContentType.MAIN

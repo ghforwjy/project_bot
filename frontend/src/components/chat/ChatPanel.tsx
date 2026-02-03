@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Input, Button, List, Avatar, Spin } from 'antd'
 import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { useChatStore } from '../../store/chatStore'
 import AnalysisCollapse from './AnalysisCollapse'
 import ThinkingCollapse from './ThinkingCollapse'
-import { ContentType, ChatMessage } from '../../types'
-import { parseContent, extractAnalysisText } from '../../utils/contentParser'
+import MessageContent from './MessageContent'
+import { ChatMessage } from '../../types'
+import { parseMessage } from '../../utils/messageParser'
 
 const { TextArea } = Input
 
@@ -133,159 +132,11 @@ const ChatPanel: React.FC = () => {
 
   // 渲染助手消息内容
   const renderAssistantContent = (msg: ChatMessage) => {
-    // 优先使用content_blocks
-    if (msg.content_blocks && msg.content_blocks.length > 0) {
-      return (
-        <>
-          {msg.content_blocks.map((block, index) => {
-            // 检查是否是分析操作的结果（包含"分析结果:"）
-            const isAnalysisResult = block.analysis && block.analysis.includes('分析结果:');
-            
-            return (
-              <div key={index} className="message-block mb-4">
-                {/* 分析内容 */}
-                {block.analysis && (
-                  isAnalysisResult ? (
-                    // 分析操作的结果直接显示markdown文本
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {extractAnalysisText(block.analysis)}
-                    </ReactMarkdown>
-                  ) : (
-                    // 检查分析文本中是否包含操作结果
-                    block.analysis.includes('操作结果:') ? (
-                      // 如果包含操作结果，将其作为正文显示
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {block.analysis}
-                      </ReactMarkdown>
-                    ) : (
-                      // 其他操作的分析说明用AnalysisCollapse显示
-                      <AnalysisCollapse 
-                        type={ContentType.ANALYSIS}
-                        jsonContent={block.content.replace(/```json|```/g, '').trim()} 
-                        analysisText={block.analysis}
-                        title="分析说明"
-                      />
-                    )
-                  )
-                )}
-                
-                {/* JSON代码块内容作为数据详情显示在折叠面板中 */}
-                {block.content && (
-                  <AnalysisCollapse 
-                    type={ContentType.DATA}
-                    jsonContent={block.content.replace(/```json|```/g, '').trim()}
-                    title="数据详情"
-                  />
-                )}
-              </div>
-            );
-          })}
-        </>
-      )
-    }
+    // 使用统一的消息解析器解析消息
+    const blocks = parseMessage(msg)
     
-    // 使用后端返回的analysis字段
-    if (msg.analysis) {
-      // 检查analysis字段中是否包含操作结果
-      if (msg.analysis.includes('操作结果:')) {
-        // 如果包含操作结果，将其作为正文显示
-        return (
-          <>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {msg.analysis}
-            </ReactMarkdown>
-            
-            {/* JSON内容作为数据详情显示在折叠面板中 */}
-            <AnalysisCollapse 
-              type={ContentType.DATA}
-              jsonContent={msg.content.replace(/```json|```/g, '').trim()}
-              title="数据详情"
-            />
-          </>
-        )
-      } else {
-        // 解析内容，提取不同类型的内容块
-        const contentBlocks = parseContent(msg.content)
-        
-        return (
-          <>
-            {/* 渲染解析后的内容块 */}
-            {contentBlocks.map((block, index) => {
-              if (block.type === ContentType.MAIN) {
-                return (
-                  <ReactMarkdown key={index} remarkPlugins={[remarkGfm]}>
-                    {block.content}
-                  </ReactMarkdown>
-                )
-              } else if (block.type === ContentType.DATA) {
-                return (
-                  <AnalysisCollapse 
-                    key={index}
-                    type={block.type}
-                    jsonContent={block.content}
-                    analysisText={msg.analysis}
-                    title={block.title}
-                  />
-                )
-              } else {
-                return (
-                  <AnalysisCollapse 
-                    key={index}
-                    type={block.type}
-                    analysisText={block.content}
-                    title={block.title}
-                  />
-                )
-              }
-            })}
-            
-            {/* 如果没有数据内容块，单独显示分析内容 */}
-            {!contentBlocks.some(block => block.type === ContentType.DATA) && (
-              <AnalysisCollapse 
-                type={ContentType.ANALYSIS}
-                analysisText={msg.analysis}
-                title="分析结果"
-              />
-            )}
-          </>
-        )
-      }
-    }
-    
-    // 兼容旧数据：使用内容解析
-    const contentBlocks = parseContent(msg.content)
-    
-    return (
-      <>
-        {contentBlocks.map((block, index) => {
-          if (block.type === ContentType.MAIN) {
-            return (
-              <ReactMarkdown key={index} remarkPlugins={[remarkGfm]}>
-                {block.content}
-              </ReactMarkdown>
-            )
-          } else if (block.type === ContentType.DATA) {
-            return (
-              <AnalysisCollapse 
-                key={index}
-                type={block.type}
-                jsonContent={block.content}
-                title={block.title}
-              />
-            )
-          } else {
-            return (
-              <AnalysisCollapse 
-                key={index}
-                type={block.type}
-                analysisText={block.content}
-                title={block.title}
-              />
-            )
-          }
-        })}
-      </>
-    )
+    // 使用统一的消息内容渲染组件渲染消息内容
+    return <MessageContent blocks={blocks} />
   }
 
   return (

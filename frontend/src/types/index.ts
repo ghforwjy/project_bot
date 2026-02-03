@@ -55,7 +55,8 @@ export enum ContentType {
   MAIN = 'main',      // 正文内容
   ANALYSIS = 'analysis',  // 分析内容
   DATA = 'data',      // 数据内容（如JSON）
-  ERROR = 'error'     // 错误信息
+  ERROR = 'error',     // 错误信息
+  CONFIRM = 'confirm'   // 确认信息
 }
 
 // 消息内容块
@@ -79,10 +80,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   analysis?: string
-  content_blocks?: Array<{
-    analysis: string
-    content: string
-  }>
+  content_blocks?: ContentBlock[]
   timestamp: Date
 }
 
@@ -96,10 +94,7 @@ export interface ChatResponse {
     role: string
     content: string
     analysis?: string
-    content_blocks?: Array<{
-      analysis: string
-      content: string
-    }>
+    content_blocks?: ContentBlock[]
     progress_steps?: ThinkingStep[]
     timestamp: string
   }

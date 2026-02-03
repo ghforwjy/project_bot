@@ -34,6 +34,10 @@ const AnalysisCollapse: React.FC<AnalysisCollapseProps> = ({
         return <CodeOutlined size={16} />
       case ContentType.MAIN:
         return <FileTextOutlined size={16} />
+      case ContentType.ERROR:
+        return <InfoCircleOutlined size={16} />
+      case ContentType.CONFIRM:
+        return <FileTextOutlined size={16} />
       default:
         return <InfoCircleOutlined size={16} />
     }
@@ -50,6 +54,8 @@ const AnalysisCollapse: React.FC<AnalysisCollapseProps> = ({
         return 'default'
       case ContentType.ERROR:
         return 'red'
+      case ContentType.CONFIRM:
+        return 'yellow'
       default:
         return 'default'
     }
@@ -66,6 +72,8 @@ const AnalysisCollapse: React.FC<AnalysisCollapseProps> = ({
         return '正文内容'
       case ContentType.ERROR:
         return '错误信息'
+      case ContentType.CONFIRM:
+        return '确认信息'
       default:
         return '内容'
     }
@@ -98,6 +106,7 @@ const AnalysisCollapse: React.FC<AnalysisCollapseProps> = ({
           type === ContentType.ANALYSIS ? 'bg-blue-50 border-blue-200' :
           type === ContentType.DATA ? 'bg-green-50 border-green-200' :
           type === ContentType.ERROR ? 'bg-red-50 border-red-200' :
+          type === ContentType.CONFIRM ? 'bg-yellow-50 border-yellow-200' :
           'bg-gray-50 border-gray-200'
         }`}>
           {/* JSON内容 */}
