@@ -1,0 +1,38 @@
+{
+  "total": 5,
+  "passed": 5,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "results": [
+    {
+      "test_name": "甘特图数据API",
+      "passed": true,
+      "message": "成功获取数据: 2 个大类",
+      "timestamp": "2026-02-04 16:15:15"
+    },
+    {
+      "test_name": "任务数据完整性",
+      "passed": true,
+      "message": "所有 7 个任务的必需字段完整",
+      "timestamp": "2026-02-04 16:15:15"
+    },
+    {
+      "test_name": "tooltip数据格式",
+      "passed": true,
+      "message": "所有 7 个任务的数据格式正确",
+      "timestamp": "2026-02-04 16:15:15"
+    },
+    {
+      "test_name": "前端组件存在性",
+      "passed": true,
+      "message": "GanttChart组件存在且包含showTooltip函数",
+      "timestamp": "2026-02-04 16:15:15"
+    },
+    {
+      "test_name": "前端组件功能",
+      "passed": true,
+      "message": "showTooltip函数支持多行内容和任务描述",
+      "timestamp": "2026-02-04 16:15:15"
+    }
+  ]
+}

@@ -247,12 +247,24 @@ async def send_message(
                 Message(
                     role="system", 
                     content="你是一个项目管理助手，帮助用户管理项目、项目大类和任务。请用简洁友好的语言回答用户的问题。\n\n"+
-                           "## 特殊指令\n"+
-                           "如果用户的请求涉及项目、项目大类或任务的创建、更新、查询等操作，请在回复中包含JSON格式的操作指令，格式如下：\n\n"+
+                           "## 需求分类\n\n"+
+                           "### 增删改查操作（需要JSON指令）\n"+
+                           "以下操作需要返回JSON指令并遵循确认流程：\n"+
+                           "- 创建项目、更新项目、删除项目\n"+
+                           "- 创建任务、更新任务、删除任务\n"+
+                           "- 创建项目大类、更新项目大类、删除项目大类\n"+
+                           "- 为项目指定大类\n\n"+
+                           "### 分析需求（不需要JSON指令）\n"+
+                           "以下操作不需要返回JSON指令，直接基于项目数据回答：\n"+
+                           "- 查询项目状态、任务状态、项目进度\n"+
+                           "- 统计项目完成情况、任务分配情况\n"+
+                           "- 分析项目数据、任务数据\n"+
+                           "- 回答关于项目的任何问题（只要不是明确的增删改查操作）\n\n"+
+                           "## 增删改查操作格式\n\n"+
                            "### 项目操作\n"+
                            "```json\n"+
                            "{\n"+
-                           "  \"intent\": \"create_project|update_project|query_project|delete_project\",\n"+
+                           "  \"intent\": \"create_project|update_project|delete_project\",\n"+
                            "  \"data\": {\n"+
                            "    \"project_name\": \"项目名称\",\n"+
                            "    \"description\": \"项目描述\",\n"+
@@ -273,7 +285,7 @@ async def send_message(
                            "### 项目大类操作\n"+
                            "```json\n"+
                            "{\n"+
-                           "  \"intent\": \"create_category|update_category|query_category|delete_category\",\n"+
+                           "  \"intent\": \"create_category|update_category|delete_category\",\n"+
                            "  \"data\": {\n"+
                            "    \"category_name\": \"项目大类名称\",\n"+
                            "    \"description\": \"项目大类描述\"\n"+
@@ -314,8 +326,8 @@ async def send_message(
                            "- 不要自动创建新项目\n"+
                            "- 应该列出系统中相似的项目供用户选择\n"+
                            "- 询问用户是否指的是这些相似项目\n\n"+
-                           "### 操作确认（关键规则）\n\n"+
-                           "当用户请求执行任何创建、更新、删除操作时，你必须遵循以下两轮对话流程：\n\n"+
+                           "### 增删改查操作确认流程（关键规则）\n\n"+
+                           "当用户请求执行创建、更新、删除操作时，你必须遵循以下两轮对话流程：\n\n"+
                            "**第一轮（确认轮）：**\n"+
                            "- 不要返回任何JSON指令\n"+
                            "- 只用自然语言说明将要执行的操作\n"+
@@ -328,6 +340,15 @@ async def send_message(
                            "**重要：**\n"+
                            "- 如果用户在当前消息中没有明确确认，就返回第一轮的确认提示\n"+
                            "- 只有收到用户确认后，才返回JSON指令\n\n"+
+                           "### 分析需求处理规则（关键规则）\n\n"+
+                           "当用户询问项目相关问题（只要不是明确的增删改查操作）时：\n"+
+                           "- 直接基于项目数据回答用户的问题\n"+
+                           "- 不要返回任何JSON指令\n"+
+                           "- 不要要求用户确认\n"+
+                           "- 理解对话语境，正确回应用户的追问和质疑\n"+
+                           "- 如果用户质疑你的回答方式，应该理解并改进回答\n"+
+                           "- **重要**：直接回答用户的问题，不要绕弯子或说反话\n"+
+                           "- 例如：用户问\"哪些项目没有分配人员\"，应该直接回答\"没有未分配人员的项目\"，而不是说\"所有项目都有分配人员\"\n\n"+
                            "请在自然语言中说明将要执行的操作，但不要在用户确认之前返回JSON指令。"
                 )
             ]
@@ -346,6 +367,13 @@ async def send_message(
             all_categories = all_categories_result.get('data', []) if all_categories_result.get('success') else []
             categories_list = [c['name'] for c in all_categories]
             
+            # 获取详细的项目数据，包括任务分配情况
+            detailed_projects = []
+            for project_name in projects_list:
+                project_detail = project_service.get_project(project_name)
+                if project_detail.get('success') and project_detail.get('data'):
+                    detailed_projects.append(project_detail['data'])
+            
             # 将项目和类别列表添加到系统提示词
             if projects_list:
                 system_content = messages[0].content
@@ -355,6 +383,26 @@ async def send_message(
             if categories_list:
                 system_content = messages[0].content
                 system_content += f"\n\n## 当前系统中存在的类别\n{categories_list}"
+                messages[0] = Message(role="system", content=system_content)
+            
+            # 添加详细的项目数据上下文
+            if detailed_projects:
+                system_content = messages[0].content
+                system_content += "\n\n## 项目详细数据"
+                for project in detailed_projects:
+                    system_content += f"\n\n### 项目: {project.get('name')}"
+                    system_content += f"\n描述: {project.get('description', '无')}"
+                    system_content += f"\n状态: {project.get('status', '未知')}"
+                    system_content += f"\n任务数量: {len(project.get('tasks', []))}"
+                    
+                    # 添加任务信息
+                    tasks = project.get('tasks', [])
+                    if tasks:
+                        system_content += "\n任务列表:"
+                        for task in tasks:
+                            assignee = task.get('assignee', '未分配')
+                            status = task.get('status', '未知')
+                            system_content += f"\n- {task.get('name')} (负责人: {assignee}, 状态: {status})"
                 messages[0] = Message(role="system", content=system_content)
             
             # 添加历史消息（倒序，确保时间顺序正确）

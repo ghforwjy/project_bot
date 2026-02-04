@@ -37,7 +37,15 @@ const ChatPanel: React.FC = () => {
       '分析', '统计', '情况', '概览', '总结', 
       '项目分析', '任务分析', '进度分析', '状态分析'
     ]
-    return analysisKeywords.some(keyword => message.includes(keyword))
+    
+    const projectQueryKeywords = [
+      '哪些项目', '项目分配', '人员分配', '任务分配', 
+      '项目状态', '任务状态', '项目进度', '任务进度',
+      '还没有', '未分配', '未开始', '已完成', '进行中'
+    ]
+    
+    return analysisKeywords.some(keyword => message.includes(keyword)) || 
+           projectQueryKeywords.some(keyword => message.includes(keyword))
   }
 
   // 发送消息

@@ -1,0 +1,26 @@
+{
+  "total": 3,
+  "passed": 3,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "results": [
+    {
+      "test_name": "定位逻辑",
+      "passed": true,
+      "message": "所有测试用例的定位逻辑正确",
+      "timestamp": "2026-02-04 17:23:10"
+    },
+    {
+      "test_name": "鼠标事件穿透",
+      "passed": true,
+      "message": "GanttChart组件正确设置了pointer-events: none",
+      "timestamp": "2026-02-04 17:23:10"
+    },
+    {
+      "test_name": "svgWidth参数传递",
+      "passed": true,
+      "message": "所有2个showTooltip调用都传递了svgWidth参数",
+      "timestamp": "2026-02-04 17:23:10"
+    }
+  ]
+}

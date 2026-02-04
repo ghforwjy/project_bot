@@ -1,0 +1,26 @@
+{
+  "total": 3,
+  "passed": 3,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "results": [
+    {
+      "test_name": "description字段存在性",
+      "passed": true,
+      "message": "所有 7 个任务都包含description字段",
+      "timestamp": "2026-02-04 17:10:01"
+    },
+    {
+      "test_name": "description字段内容",
+      "passed": true,
+      "message": "7/7 个任务有描述内容",
+      "timestamp": "2026-02-04 17:10:01"
+    },
+    {
+      "test_name": "前端使用description字段",
+      "passed": true,
+      "message": "GanttChart组件正确使用task.description字段",
+      "timestamp": "2026-02-04 17:10:01"
+    }
+  ]
+}

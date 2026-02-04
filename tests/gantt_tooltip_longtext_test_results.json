@@ -1,0 +1,26 @@
+{
+  "total": 3,
+  "passed": 3,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "results": [
+    {
+      "test_name": "长文本描述",
+      "passed": true,
+      "message": "找到 3 个长文本任务",
+      "timestamp": "2026-02-04 17:14:50"
+    },
+    {
+      "test_name": "文本换行逻辑",
+      "passed": true,
+      "message": "所有测试用例的换行逻辑正确",
+      "timestamp": "2026-02-04 17:14:50"
+    },
+    {
+      "test_name": "前端实现",
+      "passed": true,
+      "message": "GanttChart组件正确实现了文本换行和动态高度计算",
+      "timestamp": "2026-02-04 17:14:50"
+    }
+  ]
+}

@@ -134,20 +134,57 @@ class GanttTask(BaseModel):
     """甘特图任务"""
     id: str
     name: str
+    description: Optional[str] = None
     start: str
     end: str
     progress: int = Field(..., ge=0, le=100)
     assignee: Optional[str] = None
     dependencies: List[str] = []
     custom_class: Optional[str] = None
+    startTimeType: Optional[str] = None  # 开始时间类型：actual 或 planned
+    endTimeType: Optional[str] = None  # 结束时间类型：actual 或 planned
 
 
 class GanttData(BaseModel):
     """甘特图数据"""
     project_name: str
+    project_description: Optional[str] = None
     start_date: str
     end_date: str
     tasks: List[GanttTask]
+
+
+class ProjectPhase(BaseModel):
+    """项目阶段"""
+    id: str
+    name: str
+    start: str
+    end: str
+    description: str
+
+
+class ProjectGantt(BaseModel):
+    """项目甘特图数据"""
+    id: int
+    name: str
+    description: str
+    start_date: str
+    end_date: str
+    progress: int
+    tasks: List[GanttTask]
+    phases: List[ProjectPhase] = []
+
+
+class ProjectCategoryGantt(BaseModel):
+    """项目大类甘特图数据"""
+    id: int
+    name: str
+    projects: List[ProjectGantt]
+
+
+class AllGanttData(BaseModel):
+    """所有项目的甘特图数据"""
+    project_categories: List[ProjectCategoryGantt]
 
 
 # ============================================
