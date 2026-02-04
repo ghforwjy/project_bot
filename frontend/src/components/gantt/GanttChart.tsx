@@ -8,6 +8,32 @@ import './GanttChart.css';
 
 const { Option } = Select;
 
+// 搜索输入组件 - 独立的组件避免焦点问题
+const SearchInput: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  onSearch: () => void;
+}> = ({ value, onChange, onSearch }) => {
+  return (
+    <>
+      <Input
+        placeholder="输入任务名称或描述..."
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onPressEnter={onSearch}
+        className="gantt-control-input"
+      />
+      <Button
+        icon={<SearchOutlined />}
+        onClick={onSearch}
+        className="gantt-control-button"
+      >
+        搜索
+      </Button>
+    </>
+  );
+};
+
 //甘特图组件
 const GanttChart: React.FC<GanttChartProps> = ({
   projectId = null,
@@ -26,6 +52,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const [viewMode, setViewMode] = useState<'single' | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [categories, setCategories] = useState<ProjectCategoryGantt[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
 
@@ -67,9 +95,12 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const filteredCategories = useMemo(() => {
     let result = ganttData?.project_categories || [];
     
-    if (viewMode === 'single' && projectId) {
+    // 使用本地选择的项目ID，如果没有则使用父组件传入的projectId
+    const effectiveProjectId = selectedProjectId !== null ? selectedProjectId : projectId;
+    
+    if (viewMode === 'single' && effectiveProjectId) {
       result = result.filter((category: ProjectCategoryGantt) => 
-        category.projects.some((project: ProjectGantt) => project.id === projectId)
+        category.projects.some((project: ProjectGantt) => project.id === effectiveProjectId)
       );
     }
     
@@ -94,7 +125,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }
     
     return result;
-  }, [viewMode, projectId, selectedCategory, searchQuery, ganttData]);
+  }, [viewMode, projectId, selectedCategory, searchQuery, ganttData, selectedProjectId]);
 
   const totalTaskCount = useMemo(() => {
     return filteredCategories.reduce((sum, category) => 
@@ -949,88 +980,119 @@ const GanttChart: React.FC<GanttChartProps> = ({
   };
 
   // 控制栏组件
-  const ControlBar = () => (
-    <div className="gantt-control-bar">
-      <div className="gantt-control-bar-main">
-        <div className="gantt-control-group">
-          <div className="gantt-control-item">
-            <AppstoreOutlined className="gantt-control-icon" />
-            <span className="gantt-control-label">视图模式</span>
-          </div>
-          <Select
-            value={viewMode}
-            onChange={(value) => setViewMode(value)}
-            className="gantt-control-select"
-            disabled={!projectId && viewMode === 'single'}
-          >
-            <Option value="all">
-              <UnorderedListOutlined className="gantt-option-icon" />
-              <span>所有项目</span>
-            </Option>
-            <Option value="single">
-              <BarsOutlined className="gantt-option-icon" />
-              <span>单个项目</span>
-            </Option>
-          </Select>
-        </div>
+  const ControlBar = () => {
+    // 获取所有项目列表用于选择
+    const allProjects = useMemo(() => {
+      if (!ganttData?.project_categories) return [];
+      const projects: { id: number; name: string }[] = [];
+      ganttData.project_categories.forEach(category => {
+        category.projects.forEach(project => {
+          projects.push({ id: project.id, name: project.name });
+        });
+      });
+      return projects;
+    }, [ganttData]);
 
-        <div className="gantt-control-group">
-          <div className="gantt-control-item">
-            <FolderOutlined className="gantt-control-icon" />
-            <span className="gantt-control-label">项目大类</span>
-          </div>
-          <Select
-            value={selectedCategory}
-            onChange={(value) => setSelectedCategory(value)}
-            className="gantt-control-select"
-            allowClear
-            placeholder="全部"
-          >
-            <Option value={null}>
-              <span>全部</span>
-            </Option>
-            {ganttData?.project_categories.map(category => (
-              <Option key={category.id} value={category.id}>
-                <span>{category.name}</span>
-                <span className="gantt-option-count">
-                  ({category.projects.length})
-                </span>
-              </Option>
-            ))}
-          </Select>
-        </div>
-
-        <div className="gantt-control-group">
-          <div className="gantt-control-item">
-            <SearchOutlined className="gantt-control-icon" />
-            <span className="gantt-control-label">搜索任务</span>
-          </div>
-          <Input
-            placeholder="输入任务名称或描述..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="gantt-control-input"
-            allowClear
-          />
-          {searchQuery && (
-            <Button
-              icon={<CloseCircleOutlined />}
-              onClick={() => setSearchQuery('')}
-              className="gantt-control-clear"
+    return (
+      <div className="gantt-control-bar">
+        <div className="gantt-control-bar-main">
+          <div className="gantt-control-group">
+            <div className="gantt-control-item">
+              <AppstoreOutlined className="gantt-control-icon" />
+              <span className="gantt-control-label">视图模式</span>
+            </div>
+            <Select
+              value={viewMode}
+              onChange={(value) => {
+                setViewMode(value);
+                if (value === 'all') {
+                  setSelectedProjectId(null);
+                }
+              }}
+              className="gantt-control-select"
             >
-              清除
-            </Button>
+              <Option value="all">
+                <UnorderedListOutlined className="gantt-option-icon" />
+                <span>所有项目</span>
+              </Option>
+              <Option value="single">
+                <BarsOutlined className="gantt-option-icon" />
+                <span>单个项目</span>
+              </Option>
+            </Select>
+          </div>
+
+          {viewMode === 'single' && (
+            <div className="gantt-control-group">
+              <div className="gantt-control-item">
+                <FolderOutlined className="gantt-control-icon" />
+                <span className="gantt-control-label">选择项目</span>
+              </div>
+              <Select
+                value={selectedProjectId}
+                onChange={(value) => setSelectedProjectId(value)}
+                className="gantt-control-select"
+                placeholder="请选择项目"
+                showSearch
+                optionFilterProp="children"
+                allowClear
+              >
+                {allProjects.map(project => (
+                  <Option key={project.id} value={project.id}>
+                    {project.name}
+                  </Option>
+                ))}
+              </Select>
+            </div>
           )}
+
+          <div className="gantt-control-group">
+            <div className="gantt-control-item">
+              <FolderOutlined className="gantt-control-icon" />
+              <span className="gantt-control-label">项目大类</span>
+            </div>
+            <Select
+              value={selectedCategory}
+              onChange={(value) => setSelectedCategory(value)}
+              className="gantt-control-select"
+              allowClear
+              placeholder="全部"
+            >
+              <Option value={null}>
+                <span>全部</span>
+              </Option>
+              {ganttData?.project_categories.map(category => (
+                <Option key={category.id} value={category.id}>
+                  <span>{category.name}</span>
+                  <span className="gantt-option-count">
+                    ({category.projects.length})
+                  </span>
+                </Option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="gantt-control-group">
+            <div className="gantt-control-item">
+              <SearchOutlined className="gantt-control-icon" />
+              <span className="gantt-control-label">搜索任务</span>
+            </div>
+            <SearchInput
+              value={searchInputValue}
+              onChange={setSearchInputValue}
+              onSearch={() => setSearchQuery(searchInputValue)}
+            />
+          </div>
+        </div>
+
+        <div className="gantt-control-bar-status">
+          <span className="gantt-status-text">
+            找到 <strong>{totalTaskCount}</strong> 个任务
+          </span>
         </div>
       </div>
-
-      <div className="gantt-control-bar-status">
-        <span className="gantt-status-text">
-          找到 <strong>{totalTaskCount}</strong> 个任务
-        </span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   // 图例组件
   const Legend = () => (

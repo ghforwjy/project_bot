@@ -90,6 +90,22 @@
   background: #f0f9ff;
 }
 
+.gantt-control-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 150ms ease;
+  background: #1890ff;
+  border-color: #1890ff;
+  color: #ffffff;
+}
+
+.gantt-control-button:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  color: #ffffff;
+}
+
 .gantt-control-bar-status {
   display: flex;
   align-items: center;
