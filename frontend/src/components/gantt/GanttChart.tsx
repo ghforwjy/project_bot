@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useQuery } from '@tanstack/react-query';
 import { Spin, Empty, Tooltip, Select, Input, Button } from 'antd';
@@ -192,31 +192,34 @@ const GanttChart: React.FC<GanttChartProps> = ({
     if (!chartRef.current || !filteredCategories || containerWidth === 0) return;
     const container = chartRef.current;
     const chartWidth = containerWidth;
-    const chartHeight = height;
 
     d3.select(container).selectAll('*').remove();
     d3.select(container)
-      .style('overflow', 'hidden');
+      .style('overflow-y', 'auto')
+      .style('overflow-x', 'hidden');
 
     const timeRange = calculateTimeRange(filteredCategories, chartWidth);
     const svgWidth = chartWidth;
 
+    // 计算实际内容高度，加上顶部和底部边距
+    const actualContentHeight = calculateTotalHeight(filteredCategories, expandedStates);
+    const svgHeight = actualContentHeight + 80; // 40px顶部 + 40px底部边距
+
     const svg = d3.select(container)
       .append('svg')
       .attr('width', svgWidth)
-      .attr('height', chartHeight)
+      .attr('height', svgHeight)
       .attr('class', 'gantt-svg');
 
     const xScale = d3.scaleTime()
       .domain([new Date(timeRange.min), new Date(timeRange.max)])
       .range([240, svgWidth - 40]);
 
-    const yScale = d3.scaleLinear()
-      .domain([0, calculateTotalHeight(filteredCategories, expandedStates)])
-      .range([40, chartHeight - 40]);
+    // 直接使用y坐标，不进行压缩
+    const yScale = (y: number) => y + 40;
 
-    renderTimeAxis(svg, xScale, svgWidth, chartHeight);
-    renderTodayLine(svg, xScale, chartHeight, timeRange, svgWidth);
+    renderTimeAxis(svg, xScale, svgWidth, svgHeight);
+    renderTodayLine(svg, xScale, svgHeight, timeRange, svgWidth);
 
     let currentY = 0;
     filteredCategories.forEach((category, categoryIndex) => {
@@ -297,15 +300,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const calculateTotalHeight = (categories: ProjectCategoryGantt[], expandedStates: ExpandedStates) => {
     return categories.reduce((total, category, index) => {
       const isExpanded = expandedStates.categories[index] !== false;
-      return total + calculateCategoryHeight(category, isExpanded);
+      // 在每个大类之间添加20px的padding
+      const categoryPadding = index > 0 ? 20 : 0;
+      return total + categoryPadding + calculateCategoryHeight(category, isExpanded);
     }, 0);
   };
 
   // 计算大类高度
   const calculateCategoryHeight = (category: ProjectCategoryGantt, isExpanded: boolean) => {
-    if (!isExpanded) return 60; // 折叠状态下只显示标题
+    if (!isExpanded) return 50; // 折叠状态下只显示标题
 
-    return 60 + category.projects.reduce((total, project) => {
+    return 50 + category.projects.reduce((total, project) => {
       const projectKey = `${category.id}-${project.id}`;
       const isProjectExpanded = expandedStates.projects[projectKey] !== false;
       return total + calculateProjectHeight(project, isProjectExpanded);
@@ -314,8 +319,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
   // 计算项目高度
   const calculateProjectHeight = (project: ProjectGantt, isExpanded: boolean) => {
-    if (!isExpanded) return 40; // 折叠状态下只显示标题
-    return 40 + project.tasks.length * 32; // 每个任务32px高度
+    if (!isExpanded) return 32; // 折叠状态下只显示标题
+    return 32 + project.tasks.length * 32; // 每个任务32px高度
   };
 
   // 渲染时间轴
@@ -326,9 +331,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     // 时间轴刻度
     const xAxis = d3.axisBottom(xScale)
       .ticks(tickCount)
-      .tickFormat((date: Date) => {
-        return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-      });
+      .tickFormat(d3.timeFormat('%m/%d'));
 
     // 渲染时间轴
     svg.append('g')
@@ -452,7 +455,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
     // 渲染项目
     if (isExpanded) {
-      let projectY = yPosition + 60; // 大类标题高度60px
+      let projectY = yPosition + 50; // 大类标题高度50px
       
       category.projects.forEach((project, projectIndex) => {
         const projectKey = `${category.id}-${project.id}`;
@@ -538,7 +541,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
     // 渲染任务
     if (isExpanded) {
-      let taskY = yPosition + 40; // 项目标题高度40px
+      let taskY = yPosition + 32; // 项目标题高度32px
       
       project.tasks.forEach((task, taskIndex) => {
         renderTask(
@@ -708,9 +711,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
     const taskBar = svg.append('rect')
       .attr('class', 'gantt-task-bar')
       .attr('x', taskX)
-      .attr('y', y - 8)
+      .attr('y', y - 16)
       .attr('width', taskWidth)
-      .attr('height', 16)
+      .attr('height', 20)
       .attr('rx', 4)
       .attr('fill', getTaskColor(task.custom_class, task.progress, categoryColor))
       .attr('stroke', adjustColorBrightness(getTaskColor(task.custom_class, task.progress, categoryColor), -30))
@@ -719,8 +722,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .style('transition', 'all 0.2s ease')
       .on('mouseover', function() {
         d3.select(this)
-          .attr('height', 18)
-          .attr('y', y - 9);
+          .attr('height', 22)
+          .attr('y', y - 17);
         
         const fullStartDate = new Date(task.start).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
         const fullEndDate = new Date(task.end).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -739,8 +742,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       })
       .on('mouseout', function() {
         d3.select(this)
-          .attr('height', 16)
-          .attr('y', y - 8);
+          .attr('height', 20)
+          .attr('y', y - 16);
         
         svg.selectAll('.gantt-tooltip').remove();
       })
@@ -748,17 +751,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
     // 渲染任务进度
     if (task.progress > 0) {
-      const progressWidth = (taskWidth * task.progress) / 100;
+      const progressWidth = Math.max(0, Math.min(taskWidth, (taskWidth * task.progress) / 100));
       
       svg.append('rect')
         .attr('class', 'gantt-task-progress')
         .attr('x', taskX)
-        .attr('y', y - 8)
+        .attr('y', y - 16)
         .attr('width', progressWidth)
-        .attr('height', 16)
+        .attr('height', 32)
         .attr('rx', 4)
-        .attr('fill', getProgressColor(task.progress, categoryColor))
-        .attr('opacity', 0.6)
+        .attr('fill', getProgressColor(task.custom_class, task.progress, categoryColor))
         .style('pointer-events', 'none');
     }
 
@@ -909,37 +911,24 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
   // 获取任务颜色
   const getTaskColor = (customClass: string, progress: number, categoryColor: string) => {
-    switch (customClass) {
-      case 'bar-active':
-        return '#3b82f6'; // 蓝色
-      case 'bar-pending':
-        return '#94a3b8'; // 灰色
-      case 'bar-completed':
-        return '#22c55e'; // 绿色
-      case 'bar-delayed':
-        return '#ef4444'; // 红色
-      case 'bar-cancelled':
-        return '#64748b'; // 深灰色
-      default:
-        // 基于进度的颜色
-        if (progress < 33) {
-          return adjustColorBrightness(categoryColor, 30);
-        } else if (progress < 66) {
-          return categoryColor;
-        } else {
-          return adjustColorBrightness(categoryColor, -20);
-        }
-    }
+    return '#64748b'; // 深灰色，任务条固定为深灰色背景
   };
 
   // 获取进度条颜色
-  const getProgressColor = (progress: number, categoryColor: string) => {
-    if (progress < 33) {
-      return '#60a5fa'; // 浅蓝
-    } else if (progress < 66) {
-      return '#3b82f6'; // 中蓝
-    } else {
-      return '#2563eb'; // 深蓝
+  const getProgressColor = (customClass: string, progress: number, categoryColor: string) => {
+    switch (customClass) {
+      case 'bar-active':
+        return '#3b82f6'; // 蓝色 - 进行中
+      case 'bar-pending':
+        return '#94a3b8'; // 浅灰色 - 待处理
+      case 'bar-completed':
+        return '#22c55e'; // 绿色 - 已完成
+      case 'bar-delayed':
+        return '#ef4444'; // 红色 - 已延迟
+      case 'bar-cancelled':
+        return '#64748b'; // 深灰色 - 已取消
+      default:
+        return '#94a3b8'; // 浅灰色 - 默认
     }
   };
 
@@ -1118,7 +1107,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
   if (isLoading) {
     return (
-      <div className={`gantt-container ${className}`} style={{ width, height }}>
+      <div className={`gantt-container ${className}`} style={{ width }}>
         <ControlBar />
         <div className="gantt-loading">
           <Spin tip="加载甘特图数据..." />
@@ -1130,7 +1119,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
   if (error) {
     return (
-      <div className={`gantt-container ${className}`} style={{ width, height }}>
+      <div className={`gantt-container ${className}`} style={{ width }}>
         <ControlBar />
         <div className="gantt-empty">
           <Empty description="加载失败，请重试" />
@@ -1147,7 +1136,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
         <div 
           ref={chartRef} 
           className="gantt-chart" 
-          style={{ height, minWidth: '800px' }}
+          style={{ minWidth: '800px' }}
         />
       </div>
       <Legend />
