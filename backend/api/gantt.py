@@ -177,8 +177,8 @@ def build_category_gantt(category: ProjectCategory, projects: list, db: Session)
 
 def build_project_gantt(project: Project, db: Session) -> ProjectGantt:
     """构建项目的甘特图数据"""
-    # 查询项目的任务
-    tasks = db.query(Task).filter(Task.project_id == project.id).all()
+    # 查询项目的任务，按 order 字段排序
+    tasks = db.query(Task).filter(Task.project_id == project.id).order_by(Task.order).all()
     
     # 转换为甘特图任务格式
     gantt_tasks = []

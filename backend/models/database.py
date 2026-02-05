@@ -71,4 +71,30 @@ def init_db():
     finally:
         db.close()
     
+    # 检查并添加 tasks 表的 order 列
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        # 检查 tasks 表是否有 order 列
+        result = db.execute(text("PRAGMA table_info(tasks)"))
+        columns = [row[1] for row in result]
+        
+        if 'order' not in columns:
+            # 添加 order 列
+            db.execute(text("ALTER TABLE tasks ADD COLUMN \"order\" INTEGER DEFAULT 0"))
+            db.commit()
+            # 为现有任务设置默认的 order 值
+            tasks = db.execute(text("SELECT id FROM tasks ORDER BY id")).fetchall()
+            for i, task in enumerate(tasks):
+                db.execute(text(f"UPDATE tasks SET \"order\" = {i} WHERE id = {task[0]}"))
+            db.commit()
+            print("已成功添加 tasks.order 列并设置默认值")
+        else:
+            print("tasks.order 列已存在")
+    except Exception as e:
+        print(f"添加 order 列失败: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
+    
     print(f"数据库初始化完成: {DATABASE_PATH}")

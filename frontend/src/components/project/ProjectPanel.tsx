@@ -5,6 +5,7 @@ import type { Dayjs } from 'dayjs'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import GanttChart from '../gantt/GanttChart'
 import ProjectDetailModal from './ProjectDetailModal'
+import TaskModal from './TaskModal'
 import { projectService, ProjectUpdate, ProjectCategory } from '../../services/projectService'
 import api from '../../services/api'
 
@@ -42,6 +43,8 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
   const [categories, setCategories] = useState<ProjectCategory[]>([])
   const [taskModalVisible, setTaskModalVisible] = useState(false)
+  const [taskModalMode, setTaskModalMode] = useState<'add' | 'edit'>('add')
+  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null)
   const [projectDetailModalVisible, setProjectDetailModalVisible] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
   const [initialTaskId, setInitialTaskId] = useState<number | null>(null)
@@ -68,9 +71,9 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
     const project = projects.find(p => p.id === task.project_id)
     if (project) {
       setCurrentProjectId(project.id)
-      setProjectDetailModalVisible(true)
-      // 保存初始任务ID，用于自动打开编辑状态
-      setInitialTaskId(taskIdNum)
+      setCurrentTaskId(taskIdNum)
+      setTaskModalMode('edit')
+      setTaskModalVisible(true)
     }
   }
 
@@ -152,6 +155,8 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
     if (selectedProjectId) {
       queryClient.invalidateQueries({ queryKey: ['project', selectedProjectId] })
     }
+    // 失效甘特图查询，确保甘特图数据能刷新
+    queryClient.invalidateQueries({ queryKey: ['gantt'] })
     // 刷新项目大类数据
     fetchCategories()
   }
@@ -205,7 +210,8 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
   // 处理增加任务
   const handleAddTask = (projectId: number) => {
     setCurrentProjectId(projectId)
-    taskForm.resetFields()
+    setCurrentTaskId(null)
+    setTaskModalMode('add')
     setTaskModalVisible(true)
   }
 
@@ -395,126 +401,19 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
     }
   ]
 
-  // 增加任务模态框
-  const TaskModal = () => (
-    <div ref={taskModalRef}>
-      <Modal
-        title="增加任务"
-        open={taskModalVisible}
-        onCancel={() => setTaskModalVisible(false)}
-        footer={null}
-        width={taskModalWidth}
-        height={taskModalHeight}
-        draggable
-        style={{
-          height: taskModalHeight ? `${taskModalHeight}px` : 'auto'
-        }}
-      >
-        <Form
-          form={taskForm}
-          layout="vertical"
-          onFinish={(values) => {
-            if (currentProjectId) {
-              createTaskMutation.mutate({ projectId: currentProjectId, data: values })
-            }
-          }}
-        >
-          <Form.Item
-            name="name"
-            label="任务名称"
-            rules={[{ required: true, message: '请输入任务名称' }]}
-          >
-            <AntInput placeholder="请输入任务名称" />
-          </Form.Item>
-          
-          <Form.Item
-            name="description"
-            label="任务描述"
-          >
-            <AntInput.TextArea rows={3} placeholder="请输入任务描述" />
-          </Form.Item>
-          
-          <Form.Item
-            name="assignee"
-            label="负责人"
-          >
-            <AntInput placeholder="请输入负责人" />
-          </Form.Item>
-          
-          <Form.Item
-            name="priority"
-            label="优先级"
-            initialValue={2}
-          >
-            <Select placeholder="请选择优先级">
-              <Select.Option value={1}>高</Select.Option>
-              <Select.Option value={2}>中</Select.Option>
-              <Select.Option value={3}>低</Select.Option>
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="planned_start_date"
-            label="计划开始日期"
-          >
-            <DatePicker style={{ width: '100%' }} placeholder="请选择计划开始日期" />
-          </Form.Item>
-          
-          <Form.Item
-            name="planned_end_date"
-            label="计划结束日期"
-          >
-            <DatePicker style={{ width: '100%' }} placeholder="请选择计划结束日期" />
-          </Form.Item>
-          
-          <Form.Item
-            name="deliverable"
-            label="交付物"
-          >
-            <AntInput.TextArea rows={2} placeholder="请输入交付物" />
-          </Form.Item>
-          
-          <Form.Item>
-            <Space style={{ float: 'right' }}>
-              <Button onClick={() => setTaskModalVisible(false)}>
-                取消
-              </Button>
-              <Button type="primary" htmlType="submit">
-                提交
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-
-        {/* 调整大小的手柄 */}
-        <div 
-          className="absolute bottom-0 right-0 w-6 h-6 bg-gray-300 cursor-se-resize flex items-center justify-center"
-          onMouseDown={handleTaskModalResizeStart}
-          style={{
-            position: 'absolute',
-            bottom: '16px',
-            right: '16px',
-            width: '24px',
-            height: '24px',
-            backgroundColor: '#f0f0f0',
-            border: '1px solid #d9d9d9',
-            borderRadius: '4px',
-            cursor: 'se-resize',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-        >
-          <div style={{
-            width: '8px',
-            height: '8px',
-            borderRight: '2px solid #999',
-            borderBottom: '2px solid #999'
-          }} />
-        </div>
-      </Modal>
-    </div>
+  // 增加/编辑任务模态框
+  const TaskModalComp = () => (
+    <TaskModal
+      visible={taskModalVisible}
+      mode={taskModalMode}
+      projectId={currentProjectId}
+      taskId={currentTaskId}
+      onClose={() => {
+        setTaskModalVisible(false)
+        // 重置状态
+        setCurrentTaskId(null)
+      }}
+    />
   )
 
   return (
@@ -564,8 +463,8 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
         )}
       </div>
       
-      {/* 增加任务模态框 */}
-      <TaskModal />
+      {/* 增加/编辑任务模态框 */}
+      <TaskModalComp />
       
       {/* 项目详情模态框 */}
       <ProjectDetailModal

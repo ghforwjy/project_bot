@@ -66,7 +66,9 @@ async def get_project(project_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="项目不存在")
     
     data = project.to_dict()
-    data['tasks'] = [t.to_dict() for t in project.tasks]
+    # 按照 order 字段排序获取任务
+    tasks = db.query(Task).filter(Task.project_id == project_id).order_by(Task.order).all()
+    data['tasks'] = [t.to_dict() for t in tasks]
     
     return ResponseModel(data=data)
 
@@ -205,3 +207,25 @@ def update_project_summary(project_id: int, db: Session):
     
     db.commit()
     db.refresh(project)
+
+
+@router.post("/projects/{project_id}/tasks/{task_id}/move", response_model=ResponseModel)
+async def move_task(
+    project_id: int,
+    task_id: int,
+    direction: str = Query(..., description="移动方向: up 或 down"),
+    db: Session = Depends(get_db)
+):
+    """调整任务顺序"""
+    from core.project_service import get_project_service
+    
+    project_service = get_project_service(db)
+    result = project_service.move_task(project_id, task_id, direction)
+    
+    if result["success"]:
+        return ResponseModel(
+            data=result["data"],
+            message=result["message"]
+        )
+    else:
+        raise HTTPException(status_code=400, detail=result["message"])

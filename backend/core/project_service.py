@@ -839,6 +839,156 @@ class ProjectService:
                 "message": f"删除任务失败: {str(e)}",
                 "data": None
             }
+    
+    def move_task(self, project_id: int, task_id: int, direction: str) -> Dict:
+        """
+        调整任务顺序
+
+        Args:
+            project_id: 项目ID
+            task_id: 任务ID
+            direction: 移动方向 ("up" 或 "down")
+
+        Returns:
+            Dict: 操作结果
+        """
+        try:
+            # 验证参数
+            if not project_id:
+                return {
+                    "success": False,
+                    "message": "项目ID不能为空",
+                    "data": None
+                }
+            
+            if not task_id:
+                return {
+                    "success": False,
+                    "message": "任务ID不能为空",
+                    "data": None
+                }
+            
+            if direction not in ["up", "down"]:
+                return {
+                    "success": False,
+                    "message": "移动方向必须是 'up' 或 'down'",
+                    "data": None
+                }
+            
+            # 查找项目
+            project = self.db.query(Project).filter(
+                Project.id == project_id
+            ).first()
+            
+            if not project:
+                return {
+                    "success": False,
+                    "message": f"项目 ID {project_id} 不存在",
+                    "data": None
+                }
+            
+            # 查找任务
+            task = self.db.query(Task).filter(
+                Task.id == task_id,
+                Task.project_id == project_id
+            ).first()
+            
+            if not task:
+                return {
+                    "success": False,
+                    "message": f"任务 ID {task_id} 不存在于项目中",
+                    "data": None
+                }
+            
+            # 获取项目的所有任务，按 order 排序
+            tasks = self.db.query(Task).filter(
+                Task.project_id == project_id
+            ).order_by(Task.order).all()
+            
+            task_index = None
+            for i, t in enumerate(tasks):
+                if t.id == task_id:
+                    task_index = i
+                    break
+            
+            if task_index is None:
+                return {
+                    "success": False,
+                    "message": "任务不在项目任务列表中",
+                    "data": None
+                }
+            
+            # 检查边界情况
+            if direction == "up" and task_index == 0:
+                return {
+                    "success": False,
+                    "message": "任务已经是第一个，无法上移",
+                    "data": None
+                }
+            
+            if direction == "down" and task_index == len(tasks) - 1:
+                return {
+                    "success": False,
+                    "message": "任务已经是最后一个，无法下移",
+                    "data": None
+                }
+            
+            # 计算目标位置
+            target_index = task_index - 1 if direction == "up" else task_index + 1
+            target_task = tasks[target_index]
+            
+            # 交换任务的 order 值
+            temp_order = task.order
+            task.order = target_task.order
+            target_task.order = temp_order
+            
+            self.db.commit()
+            self.db.refresh(task)
+            self.db.refresh(target_task)
+            
+            return {
+                "success": True,
+                "message": f"任务 '{task.name}' 已成功移动",
+                "data": {
+                    "task": task.to_dict(),
+                    "target_task": target_task.to_dict()
+                }
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            return {
+                "success": False,
+                "message": f"调整任务顺序失败: {str(e)}",
+                "data": None
+            }
+
+
+def ensure_task_order_column(db: Session):
+    """
+    确保 tasks 表有 order 列
+    
+    Args:
+        db: 数据库会话
+    """
+    try:
+        from sqlalchemy import text
+        # 检查 tasks 表是否有 order 列
+        result = db.execute(text("PRAGMA table_info(tasks)"))
+        columns = [row[1] for row in result]
+        
+        if 'order' not in columns:
+            # 添加 order 列
+            db.execute(text("ALTER TABLE tasks ADD COLUMN order INTEGER DEFAULT 0"))
+            db.commit()
+            # 为现有任务设置默认的 order 值
+            tasks = db.execute(text("SELECT id FROM tasks ORDER BY id")).fetchall()
+            for i, task in enumerate(tasks):
+                db.execute(text(f"UPDATE tasks SET order = {i} WHERE id = {task[0]}"))
+            db.commit()
+    except Exception as e:
+        print(f"添加 order 列失败: {str(e)}")
+        db.rollback()
 
 
 def get_project_service(db: Session) -> ProjectService:
@@ -851,4 +1001,6 @@ def get_project_service(db: Session) -> ProjectService:
     Returns:
         ProjectService: 项目服务实例
     """
+    # 确保 tasks 表有 order 列
+    ensure_task_order_column(db)
     return ProjectService(db)

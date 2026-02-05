@@ -139,6 +139,7 @@ class Task(Base):
     deliverable = Column(Text, nullable=True)
     status = Column(String, default=TaskStatus.PENDING.value)
     priority = Column(Integer, default=TaskPriority.MEDIUM.value)
+    order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=func.current_timestamp(), nullable=False)
     updated_at = Column(DateTime, default=func.current_timestamp(), nullable=False)
     
@@ -178,6 +179,7 @@ class Task(Base):
             'deliverable': self.deliverable,
             'status': self.status,
             'priority': self.priority,
+            'order': self.order,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

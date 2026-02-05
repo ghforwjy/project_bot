@@ -102,40 +102,64 @@ async def update_task(
     """更新任务"""
     from datetime import datetime
     
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.project_id == project_id
-    ).first()
-    
-    if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    
-    update_data = task_update.dict(exclude_unset=True)
-    
-    # 处理日期字段
-    date_fields = ['planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date']
-    for field in date_fields:
-        if field in update_data:
-            if update_data[field]:
-                update_data[field] = datetime.fromisoformat(update_data[field])
-            else:
-                update_data[field] = None
-    
-    for key, value in update_data.items():
-        # 跳过进度字段，始终自动计算
-        if key != 'progress':
-            setattr(task, key, value)
-    
-    # 强制自动计算任务进度，无论是否有手动设置
-    task.progress = calculate_task_progress(task)
-    
-    db.commit()
-    db.refresh(task)
-    
-    # 更新项目概要信息
-    update_project_summary(project_id, db)
-    
-    return ResponseModel(data=task.to_dict())
+    try:
+        task = db.query(Task).filter(
+            Task.id == task_id,
+            Task.project_id == project_id
+        ).first()
+        
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        
+        update_data = task_update.dict(exclude_unset=True)
+        
+        # 处理日期字段
+        date_fields = ['planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date']
+        for field in date_fields:
+            if field in update_data:
+                if update_data[field]:
+                    update_data[field] = datetime.fromisoformat(update_data[field])
+                else:
+                    update_data[field] = None
+        
+        for key, value in update_data.items():
+            # 跳过进度字段，始终自动计算
+            if key != 'progress':
+                setattr(task, key, value)
+        
+        # 验证日期是否倒挂
+        # 计划开始日期不能晚于计划结束日期
+        if task.planned_start_date and task.planned_end_date:
+            if task.planned_start_date > task.planned_end_date:
+                raise HTTPException(status_code=400, detail="任务更新失败: 计划开始日期不能晚于计划结束日期")
+        
+        # 实际开始日期不能晚于实际结束日期
+        if task.actual_start_date and task.actual_end_date:
+            if task.actual_start_date > task.actual_end_date:
+                raise HTTPException(status_code=400, detail="任务更新失败: 实际开始日期不能晚于实际结束日期")
+        
+        # 强制自动计算任务进度，无论是否有手动设置
+        task.progress = calculate_task_progress(task)
+        
+        # 验证进度值
+        if task.progress < 0 or task.progress > 100:
+            raise HTTPException(status_code=400, detail=f"任务进度值无效: {task.progress}，进度值必须在 0-100 之间")
+        
+        db.commit()
+        db.refresh(task)
+        
+        # 更新项目概要信息
+        update_project_summary(project_id, db)
+        
+        return ResponseModel(data=task.to_dict())
+    except HTTPException:
+        raise
+    except Exception as e:
+        # 捕获并返回详细的错误信息
+        error_message = str(e)
+        if "CHECK constraint failed: chk_task_progress" in error_message:
+            raise HTTPException(status_code=400, detail="任务更新失败: 进度值无效，必须在 0-100 之间")
+        raise HTTPException(status_code=400, detail=f"任务更新失败: {error_message}")
 
 
 @router.delete("/projects/{project_id}/tasks/{task_id}", response_model=ResponseModel)

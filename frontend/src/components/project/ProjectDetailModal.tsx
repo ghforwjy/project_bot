@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Card, Table, Tag, Progress, Spin, Empty, Descriptions, Input, InputNumber, Select, DatePicker, message, Space, Button, Modal } from 'antd'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined, DragOutlined, CloseCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined, DragOutlined, CloseCircleOutlined, ExclamationCircleOutlined, UpOutlined, DownOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { projectService } from '../../services/projectService'
 
@@ -18,6 +18,7 @@ interface Task {
   actual_start_date: string
   actual_end_date: string
   priority: number
+  order: number
 }
 
 interface ProjectDetail {
@@ -253,8 +254,10 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
         queryClient.invalidateQueries({ queryKey: ['project', projectId] })
       }
     },
-    onError: () => {
-      message.error('任务更新失败')
+    onError: (error: any) => {
+      // 尝试从错误对象中提取具体的错误信息
+      const errorMessage = error.response?.data?.message || error.message || '任务更新失败';
+      message.error(`任务更新失败: ${errorMessage}`);
     }
   })
   
@@ -272,8 +275,32 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
         queryClient.invalidateQueries({ queryKey: ['project', projectId] })
       }
     },
-    onError: () => {
-      message.error('任务删除失败')
+    onError: (error: any) => {
+      // 尝试从错误对象中提取具体的错误信息
+      const errorMessage = error.response?.data?.message || error.message || '任务删除失败';
+      message.error(`任务删除失败: ${errorMessage}`);
+    }
+  })
+  
+  const moveTaskMutation = useMutation({
+    mutationFn: async ({ projectId, taskId, direction }: { projectId: number; taskId: number; direction: string }) => {
+      const response = await fetch(`/api/v1/projects/${projectId}/tasks/${taskId}/move?direction=${direction}`, {
+        method: 'POST'
+      })
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+      return result
+    },
+    onSuccess: () => {
+      message.success('任务移动成功')
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      }
+    },
+    onError: (error: any) => {
+      message.error(error.message || '任务移动失败')
     }
   })
   
@@ -499,7 +526,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 180,
       render: (_: any, record: Task) => {
         if (editingTaskId === record.id) {
           return (
@@ -518,12 +545,32 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
           )
         }
         return (
-          <Button 
-            size="small" 
-            onClick={() => startEditing(record)}
-          >
-            编辑
-          </Button>
+          <Space size="small">
+            <Button 
+              icon={<UpOutlined />} 
+              size="small" 
+              onClick={() => {
+                if (projectId) {
+                  moveTaskMutation.mutate({ projectId, taskId: record.id, direction: 'up' })
+                }
+              }}
+            />
+            <Button 
+              icon={<DownOutlined />} 
+              size="small" 
+              onClick={() => {
+                if (projectId) {
+                  moveTaskMutation.mutate({ projectId, taskId: record.id, direction: 'down' })
+                }
+              }}
+            />
+            <Button 
+              size="small" 
+              onClick={() => startEditing(record)}
+            >
+              编辑
+            </Button>
+          </Space>
         )
       }
     }

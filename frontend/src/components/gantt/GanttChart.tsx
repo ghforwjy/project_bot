@@ -89,7 +89,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
       
       return { project_categories: [] };
     },
-    enabled: true
+    enabled: true,
+    staleTime: 0, // 数据立即过期，确保缓存失效能触发重新获取
+    refetchOnWindowFocus: false, // 窗口获得焦点时不自动刷新
+    refetchOnMount: true // 组件挂载时自动刷新
   });
 
   const filteredCategories = useMemo(() => {
@@ -220,6 +223,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
     renderTimeAxis(svg, xScale, svgWidth, svgHeight);
     renderTodayLine(svg, xScale, svgHeight, timeRange, svgWidth);
+    renderYearTransitions(svg, xScale, svgHeight, timeRange, svgWidth);
 
     let currentY = 0;
     filteredCategories.forEach((category, categoryIndex) => {
@@ -334,11 +338,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .tickFormat(d3.timeFormat('%m/%d'));
 
     // 渲染时间轴
-    svg.append('g')
+    const timeAxisGroup = svg.append('g')
       .attr('class', 'gantt-time-axis')
       .attr('transform', `translate(0, ${height - 40})`)
-      .call(xAxis)
-      .selectAll('text')
+      .call(xAxis);
+    
+    // 设置时间标签样式
+    timeAxisGroup.selectAll('text')
       .attr('class', 'gantt-time-label')
       .attr('dx', '-8px')
       .attr('dy', '8px')
@@ -347,9 +353,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .style('font-size', '11px')
       .style('fill', '#666666')
       .style('font-weight', '500');
+    
+    // 隐藏轴路径，去掉左右两端的竖向黑线
+    timeAxisGroup.selectAll('path')
+      .style('display', 'none');
 
     // 渲染时间轴网格线
-    svg.append('g')
+    const gridGroup = svg.append('g')
       .attr('class', 'gantt-grid')
       .attr('transform', `translate(0, ${height - 40})`)
       .call(
@@ -357,10 +367,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
           .ticks(tickCount)
           .tickSize(-(height - 80))
           .tickFormat('')
-      )
-      .selectAll('line')
+      );
+    
+    // 设置网格线样式
+    gridGroup.selectAll('line')
       .attr('stroke', '#e8e8e8')
       .attr('stroke-dasharray', '2,2');
+    
+    // 隐藏网格线的路径，去掉左右两端的竖向黑线
+    gridGroup.selectAll('path')
+      .style('display', 'none');
   };
 
   // 渲染今天标记线
@@ -393,6 +409,65 @@ const GanttChart: React.FC<GanttChartProps> = ({
         .attr('fill', '#ff4d4f')
         .text('今天');
     }
+  };
+
+  // 渲染跨年日期标记
+  const renderYearTransitions = (svg: any, xScale: any, height: number, timeRange: any, chartWidth: number) => {
+    const minDate = new Date(timeRange.min);
+    const maxDate = new Date(timeRange.max);
+    
+    // 计算时间范围内的所有1月1日
+    const yearStartDates: Date[] = [];
+    const startYear = minDate.getFullYear();
+    const endYear = maxDate.getFullYear();
+    
+    for (let year = startYear; year <= endYear; year++) {
+      const yearStart = new Date(year, 0, 1); // 1月1日
+      yearStart.setHours(0, 0, 0, 0);
+      yearStartDates.push(yearStart);
+    }
+    
+    // 对每个跨年日期，检查是否在时间范围内并渲染
+    yearStartDates.forEach((date) => {
+      const yearX = xScale(date);
+      
+      // 只有当日期在时间范围内时才显示
+      if (yearX >= 240 && yearX <= chartWidth - 40) {
+        // 垂直线
+        svg.append('line')
+          .attr('class', 'gantt-year-transition-line')
+          .attr('x1', yearX)
+          .attr('y1', 40)
+          .attr('x2', yearX)
+          .attr('y2', height - 40)
+          .attr('stroke', '#94a3b8')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '3,3');
+
+        // 上一年标签（左侧）
+        const previousYear = date.getFullYear() - 1;
+        svg.append('text')
+          .attr('class', 'gantt-year-label')
+          .attr('x', yearX - 5)
+          .attr('y', 55)
+          .attr('font-size', '11px')
+          .attr('font-weight', 'bold')
+          .attr('fill', '#64748b')
+          .attr('text-anchor', 'end')
+          .text(`(${previousYear})`);
+
+        // 下一年标签（右侧）
+        const nextYear = date.getFullYear();
+        svg.append('text')
+          .attr('class', 'gantt-year-label')
+          .attr('x', yearX + 5)
+          .attr('y', 55)
+          .attr('font-size', '11px')
+          .attr('font-weight', 'bold')
+          .attr('fill', '#64748b')
+          .text(`(${nextYear})`);
+      }
+    });
   };
 
   // 渲染项目大类
@@ -555,7 +630,14 @@ const GanttChart: React.FC<GanttChartProps> = ({
     if (isExpanded) {
       let taskY = yPosition + 32; // 项目标题高度32px
       
-      project.tasks.forEach((task, taskIndex) => {
+      // 按任务的 order 字段排序
+      const sortedTasks = [...project.tasks].sort((a, b) => {
+        const orderA = a.order || 0;
+        const orderB = b.order || 0;
+        return orderA - orderB;
+      });
+      
+      sortedTasks.forEach((task, taskIndex) => {
         renderTask(
           svg, 
           task, 
@@ -710,14 +792,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('font-size', '12px')
       .attr('fill', '#333333')
       .style('cursor', 'pointer')
-      .text(`🔍 ${task.name}`)
-      .on('mouseover', function() {
-        showTooltip(svg, task.description || '暂无描述', 60, y + 12, '任务描述', svgWidth);
-      })
-      .on('mouseout', function() {
-        // 移除所有工具提示
-        svg.selectAll('.gantt-tooltip').remove();
-      });
+      .text(`🔍 ${task.name}`);
 
     // 渲染任务条
     const taskBar = svg.append('rect')
@@ -759,7 +834,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
         
         svg.selectAll('.gantt-tooltip').remove();
       })
-      .on('click', () => onTaskClick?.(task));
+      .on('click', function(event) {
+        event.stopPropagation();
+        onTaskClick?.(task);
+      })
 
     // 渲染任务进度
     if (task.progress > 0) {
