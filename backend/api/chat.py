@@ -590,6 +590,18 @@ async def send_message(
                         else:
                             # 没有建议列表，直接显示错误
                             ai_content += f"\n\n操作失败: {result['message']}"
+                
+                elif intent == "delete_task" and data.get("project_name"):
+                    tasks = data.get("tasks", [])
+                    for task in tasks:
+                        if task.get("name"):
+                            task_name = task.get("name")
+                            result = project_service.delete_task(data["project_name"], task_name)
+                            logger.info(f"删除任务结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                            else:
+                                ai_content += f"\n\n操作失败: {result['message']}"
 
         else:
             # 如果没有配置LLM，返回模拟回复
@@ -700,6 +712,73 @@ async def clear_chat_history(
     db.commit()
     
     return ResponseModel(message=f"已删除 {deleted} 条消息")
+
+
+@router.post("/chat/sessions", response_model=ResponseModel)
+async def create_chat_session(
+    db: Session = Depends(get_db)
+):
+    """创建新会话"""
+    from models.entities import SessionInfo
+    
+    session_id = str(uuid.uuid4())
+    
+    # 创建SessionInfo记录
+    session_info = SessionInfo(
+        session_id=session_id,
+        name=None
+    )
+    db.add(session_info)
+    db.commit()
+    db.refresh(session_info)
+    
+    return ResponseModel(
+        data={
+            "session_id": session_id
+        },
+        message="新会话创建成功"
+    )
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    session_ids: list[str]
+
+
+@router.delete("/chat/sessions/batch", response_model=ResponseModel)
+async def batch_delete_chat_sessions(
+    request: BatchDeleteRequest,
+    db: Session = Depends(get_db)
+):
+    """批量删除会话"""
+    from models.entities import SessionInfo
+    
+    total_deleted_messages = 0
+    total_deleted_session_info = 0
+    
+    for session_id in request.session_ids:
+        # 删除Conversation表中该会话的所有消息
+        deleted_messages = db.query(Conversation).filter(
+            Conversation.session_id == session_id
+        ).delete(synchronize_session=False)
+        total_deleted_messages += deleted_messages
+        
+        # 删除SessionInfo表中该会话的信息
+        deleted_session_info = db.query(SessionInfo).filter(
+            SessionInfo.session_id == session_id
+        ).delete(synchronize_session=False)
+        total_deleted_session_info += deleted_session_info
+    
+    db.commit()
+    
+    return ResponseModel(
+        data={
+            "deleted_sessions": len(request.session_ids),
+            "deleted_messages": total_deleted_messages,
+            "deleted_session_info": total_deleted_session_info
+        },
+        message=f"已删除 {len(request.session_ids)} 个会话"
+    )
 
 
 @router.get("/chat/sessions", response_model=ResponseModel)

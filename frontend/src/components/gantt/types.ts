@@ -17,6 +17,7 @@ export interface GanttTask {
   dependencies: string[];
   custom_class?: string;
   phase_id?: string;
+  project_id?: number; // 项目ID，用于任务点击时定位项目
 }
 
 // 项目阶段数据结构

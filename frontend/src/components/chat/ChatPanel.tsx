@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Input, Button, List, Avatar, Spin } from 'antd'
-import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons'
+import { Input, Button, List, Avatar, Spin, message } from 'antd'
+import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons'
 import { useChatStore } from '../../store/chatStore'
 import AnalysisCollapse from './AnalysisCollapse'
 import ThinkingCollapse from './ThinkingCollapse'
@@ -13,7 +13,8 @@ const { TextArea } = Input
 const ChatPanel: React.FC = () => {
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { messages, isLoading, addMessage, setLoading, sessionId, loadHistory, thinkingSteps, setThinkingSteps, updateThinkingStep, clearThinkingSteps } = useChatStore()
+  const [isCreatingChat, setIsCreatingChat] = useState(false)
+  const { messages, isLoading, addMessage, setLoading, sessionId, setSessionId, loadHistory, thinkingSteps, setThinkingSteps, updateThinkingStep, clearThinkingSteps, createNewSession, clearMessages } = useChatStore()
 
   // 滚动到底部
   const scrollToBottom = () => {
@@ -150,6 +151,31 @@ const ChatPanel: React.FC = () => {
     }
   }
 
+  // 创建新对话
+  const handleNewChat = async () => {
+    if (isCreatingChat) return
+
+    setIsCreatingChat(true)
+
+    try {
+      const newSessionId = await createNewSession()
+      
+      if (newSessionId) {
+        setSessionId(newSessionId)
+        clearMessages()
+        clearThinkingSteps()
+        message.success('新对话创建成功')
+      } else {
+        message.error('创建新对话失败')
+      }
+    } catch (error) {
+      console.error('创建新对话失败:', error)
+      message.error('创建新对话失败')
+    } finally {
+      setIsCreatingChat(false)
+    }
+  }
+
   // 渲染助手消息内容
   const renderAssistantContent = (msg: ChatMessage) => {
     // 使用统一的消息解析器解析消息
@@ -161,6 +187,21 @@ const ChatPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+        <div className="text-base font-medium text-gray-900">对话</div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={handleNewChat}
+          loading={isCreatingChat}
+          disabled={isCreatingChat}
+          size="small"
+          style={{ height: '36px', minWidth: '100px' }}
+        >
+          {isCreatingChat ? '创建中...' : '新建对话'}
+        </Button>
+      </div>
+      
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto p-4">
         <List

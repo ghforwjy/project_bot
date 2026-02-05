@@ -225,7 +225,8 @@ def build_project_gantt(project: Project, db: Session) -> ProjectGantt:
                 assignee=task.assignee or "",
                 custom_class=get_task_css_class(task.status),
                 startTimeType=start_time_type,
-                endTimeType=end_time_type
+                endTimeType=end_time_type,
+                project_id=project.id
             )
             gantt_tasks.append(gantt_task)
     

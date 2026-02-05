@@ -509,16 +509,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
     // 渲染项目标题
     const titleGroup = svg.append('g')
       .attr('class', 'gantt-project-title')
-      .attr('transform', `translate(0, ${y + 24})`)
-      .style('cursor', 'pointer')
-      .on('click', () => handleToggleProject(projectKey));
+      .attr('transform', `translate(0, ${y + 24})`);
 
     // 展开/折叠图标
     titleGroup.append('text')
       .attr('x', 40)
       .attr('y', 0)
       .attr('font-size', '14px')
-      .text(isExpanded ? '📋' : '📂');
+      .style('cursor', 'pointer')
+      .text(isExpanded ? '📋' : '📂')
+      .on('click', () => handleToggleProject(projectKey));
 
     // 项目名称
     titleGroup.append('text')
@@ -528,7 +528,19 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('font-size', '13px')
       .attr('font-weight', '600')
       .attr('fill', '#333333')
-      .text(`${project.name} ${!isExpanded ? '(已折叠)' : ''}`);
+      .style('cursor', 'pointer')
+      .text(`${project.name} ${!isExpanded ? '(已折叠)' : ''}`)
+      .on('click', () => onProjectClick?.(project))
+      .on('mouseover', function() {
+        d3.select(this)
+          .attr('fill', '#1890ff')
+          .attr('text-decoration', 'underline');
+      })
+      .on('mouseout', function() {
+        d3.select(this)
+          .attr('fill', '#333333')
+          .attr('text-decoration', 'none');
+      });
 
     // 项目进度
     titleGroup.append('text')

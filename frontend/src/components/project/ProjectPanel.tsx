@@ -44,12 +44,35 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
   const [taskModalVisible, setTaskModalVisible] = useState(false)
   const [projectDetailModalVisible, setProjectDetailModalVisible] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  const [initialTaskId, setInitialTaskId] = useState<number | null>(null)
   const [taskForm] = Form.useForm()
   const [taskModalWidth, setTaskModalWidth] = useState<number>(600)
   const [taskModalHeight, setTaskModalHeight] = useState<number>(500)
   const [isTaskModalResizing, setIsTaskModalResizing] = useState<boolean>(false)
   const taskModalRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+
+  // 处理项目点击
+  const handleProjectClick = (project: any) => {
+    setCurrentProjectId(project.id)
+    setProjectDetailModalVisible(true)
+  }
+
+  // 处理任务点击
+  const handleTaskClick = (task: any) => {
+    // 任务ID格式为 "task_{id}"，需要提取实际的任务ID
+    const taskId = task.id?.toString().replace('task_', '')
+    const taskIdNum = taskId ? parseInt(taskId, 10) : null
+    
+    // 找到任务所属的项目
+    const project = projects.find(p => p.id === task.project_id)
+    if (project) {
+      setCurrentProjectId(project.id)
+      setProjectDetailModalVisible(true)
+      // 保存初始任务ID，用于自动打开编辑状态
+      setInitialTaskId(taskIdNum)
+    }
+  }
 
   // 获取项目列表
   const { data: projectsData, isLoading, refetch } = useQuery({
@@ -533,7 +556,11 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
             rowClassName={(record) => record.id === selectedProjectId ? 'bg-blue-50' : ''}
           />
         ) : (
-          <GanttChart projectId={selectedProjectId} />
+          <GanttChart 
+            projectId={selectedProjectId} 
+            onProjectClick={handleProjectClick}
+            onTaskClick={handleTaskClick}
+          />
         )}
       </div>
       
@@ -544,7 +571,11 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
       <ProjectDetailModal
         visible={projectDetailModalVisible}
         projectId={currentProjectId}
-        onClose={() => setProjectDetailModalVisible(false)}
+        initialTaskId={initialTaskId}
+        onClose={() => {
+          setProjectDetailModalVisible(false)
+          setInitialTaskId(null)
+        }}
       />
     </div>
   )

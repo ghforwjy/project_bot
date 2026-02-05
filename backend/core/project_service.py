@@ -762,6 +762,83 @@ class ProjectService:
                 "message": f"为项目指定大类失败: {str(e)}",
                 "data": None
             }
+    
+    def delete_task(self, project_name: str, task_name: str) -> Dict:
+        """
+        删除项目中的任务
+
+        Args:
+            project_name: 项目名称
+            task_name: 任务名称
+
+        Returns:
+            Dict: 删除结果
+        """
+        try:
+            # 验证参数
+            if not project_name:
+                return {
+                    "success": False,
+                    "message": "项目名称不能为空",
+                    "data": None
+                }
+            
+            if not task_name:
+                return {
+                    "success": False,
+                    "message": "任务名称不能为空",
+                    "data": None
+                }
+            
+            # 查找项目
+            project = self.db.query(Project).filter(
+                Project.name == project_name
+            ).first()
+            
+            if not project:
+                # 项目不存在，返回相似项目列表
+                similar_projects = self.find_similar_projects(project_name)
+                return {
+                    "success": False,
+                    "message": f"项目 '{project_name}' 不存在",
+                    "data": {
+                        "suggestions": similar_projects,
+                        "field": "project_name",
+                        "original_value": project_name
+                    }
+                }
+            
+            # 查找任务
+            task = self.db.query(Task).filter(
+                Task.project_id == project.id,
+                Task.name == task_name
+            ).first()
+            
+            if not task:
+                return {
+                    "success": False,
+                    "message": f"任务 '{task_name}' 不存在于项目 '{project_name}' 中",
+                    "data": None
+                }
+            
+            # 删除任务
+            task_name = task.name
+            self.db.delete(task)
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"任务 '{task_name}' 已从项目 '{project_name}' 中删除成功",
+                "data": None
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            return {
+                "success": False,
+                "message": f"删除任务失败: {str(e)}",
+                "data": None
+            }
 
 
 def get_project_service(db: Session) -> ProjectService:

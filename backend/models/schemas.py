@@ -143,6 +143,7 @@ class GanttTask(BaseModel):
     custom_class: Optional[str] = None
     startTimeType: Optional[str] = None  # 开始时间类型：actual 或 planned
     endTimeType: Optional[str] = None  # 结束时间类型：actual 或 planned
+    project_id: Optional[int] = None  # 项目ID，用于任务点击时定位项目
 
 
 class GanttData(BaseModel):

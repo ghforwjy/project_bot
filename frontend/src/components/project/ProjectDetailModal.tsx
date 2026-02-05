@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Card, Table, Tag, Progress, Spin, Empty, Descriptions, Input, InputNumber, Select, DatePicker, message, Space, Button } from 'antd'
+import { Card, Table, Tag, Progress, Spin, Empty, Descriptions, Input, InputNumber, Select, DatePicker, message, Space, Button, Modal } from 'antd'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined, DragOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined, DragOutlined, CloseCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { projectService } from '../../services/projectService'
 
@@ -35,6 +35,7 @@ interface ProjectDetail {
 interface ProjectDetailModalProps {
   visible: boolean
   projectId: number | null
+  initialTaskId?: number | null  // 初始编辑的任务ID
   onClose: () => void
 }
 
@@ -52,7 +53,7 @@ const priorityMap: Record<number, { color: string; text: string }> = {
   3: { color: 'success', text: '低' }
 }
 
-const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projectId, onClose }) => {
+const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projectId, onClose, initialTaskId }) => {
   const queryClient = useQueryClient()
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
   const [editingTaskData, setEditingTaskData] = useState<any>({})
@@ -65,6 +66,8 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
   const [resizeDirection, setResizeDirection] = useState<string>('se')
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, mouseX: 0, mouseY: 0 })
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, mouseX: 0, mouseY: 0 })
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   
   const windowRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -79,6 +82,16 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     },
     enabled: !!projectId && visible
   })
+  
+  // 当项目数据加载完成且有初始任务ID时，自动打开该任务的编辑状态
+  useEffect(() => {
+    if (project && project.tasks && initialTaskId) {
+      const task = project.tasks.find(t => t.id === initialTaskId)
+      if (task) {
+        startEditing(task)
+      }
+    }
+  }, [project, initialTaskId])
   
   useEffect(() => {
     if (visible && !isDragging && !isResizing) {
@@ -245,6 +258,25 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     }
   })
   
+  const deleteTaskMutation = useMutation({
+    mutationFn: async ({ projectId, taskId }: { projectId: number; taskId: number }) => {
+      return await projectService.deleteTask(projectId, taskId)
+    },
+    onSuccess: () => {
+      message.success('任务删除成功')
+      setDeleteConfirmVisible(false)
+      setTaskToDelete(null)
+      setEditingTaskId(null)
+      setEditingTaskData({})
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      }
+    },
+    onError: () => {
+      message.error('任务删除失败')
+    }
+  })
+  
   const taskColumns = [
     {
       title: '任务名称',
@@ -393,7 +425,14 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
           return (
             <Select
               value={editingTaskData.status}
-              onChange={(value) => setEditingTaskData({ ...editingTaskData, status: value })}
+              onChange={(value) => {
+                if (value === 'delete') {
+                  setTaskToDelete(record)
+                  setDeleteConfirmVisible(true)
+                } else {
+                  setEditingTaskData({ ...editingTaskData, status: value })
+                }
+              }}
               style={{ width: '100%' }}
             >
               <Select.Option value="pending">待开始</Select.Option>
@@ -401,6 +440,9 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
               <Select.Option value="completed">已完成</Select.Option>
               <Select.Option value="delayed">已延期</Select.Option>
               <Select.Option value="cancelled">已取消</Select.Option>
+              <Select.Option value="delete" style={{ color: '#ff4d4f' }}>
+                删除
+              </Select.Option>
             </Select>
           )
         }
@@ -692,6 +734,36 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
           }}
         />
       </div>
+      
+      {/* 删除确认对话框 */}
+      <Modal
+        title="确认删除任务"
+        open={deleteConfirmVisible}
+        onOk={() => {
+          if (taskToDelete && projectId) {
+            deleteTaskMutation.mutate({ projectId, taskId: taskToDelete.id })
+          }
+        }}
+        onCancel={() => {
+          setDeleteConfirmVisible(false)
+          setTaskToDelete(null)
+        }}
+        okText="确认删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        okType="primary"
+        width={400}
+      >
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <ExclamationCircleOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+          <p style={{ fontSize: '16px', color: '#333333' }}>
+            确定要删除该任务吗？
+          </p>
+          <p style={{ fontSize: '14px', color: '#666666', marginTop: '8px' }}>
+            此操作不可恢复
+          </p>
+        </div>
+      </Modal>
     </div>
   )
 }

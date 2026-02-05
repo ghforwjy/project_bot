@@ -34,6 +34,7 @@ interface ChatState {
   setThinkingSteps: (steps: ThinkingStep[]) => void
   updateThinkingStep: (stepId: string, updates: Partial<ThinkingStep>) => void
   clearThinkingSteps: () => void
+  createNewSession: () => Promise<string | null>
 }
 
 // 生成会话ID
@@ -110,5 +111,26 @@ export const useChatStore = create<ChatState>((set) => ({
     )
   })),
   
-  clearThinkingSteps: () => set({ thinkingSteps: [] })
+  clearThinkingSteps: () => set({ thinkingSteps: [] }),
+  
+  createNewSession: async () => {
+    try {
+      const response = await fetch('/api/v1/chat/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      const result = await response.json()
+      
+      if (result.code === 200 && result.data?.session_id) {
+        return result.data.session_id
+      } else {
+        console.error('创建新会话失败:', result.message)
+        return null
+      }
+    } catch (error) {
+      console.error('创建新会话失败:', error)
+      return null
+    }
+  }
 }))
