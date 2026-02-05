@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Spin, Empty, Tooltip, Select, Input, Button, message } from 'antd';
@@ -50,11 +50,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
     categories: {},
     projects: {}
   });
-  const [viewMode, setViewMode] = useState<'single' | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInputValue, setSearchInputValue] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProject, setSelectedProject] = useState<number | null>(null); // null表示所有项目
   const [categories, setCategories] = useState<ProjectCategoryGantt[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   
@@ -114,12 +113,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const filteredCategories = useMemo(() => {
     let result = ganttData?.project_categories || [];
     
-    // 使用本地选择的项目ID，如果没有则使用父组件传入的projectId
-    const effectiveProjectId = selectedProjectId !== null ? selectedProjectId : projectId;
+    // 使用本地选择的项目ID
+    const effectiveProjectId = selectedProject;
     
-    if (viewMode === 'single' && effectiveProjectId) {
-      result = result.filter((category: ProjectCategoryGantt) => 
-        category.projects.some((project: ProjectGantt) => project.id === effectiveProjectId)
+    if (effectiveProjectId !== null) {
+      // 只显示选中的项目
+      result = result.map((category: ProjectCategoryGantt) => ({
+        ...category,
+        projects: category.projects.filter((project: ProjectGantt) => project.id === effectiveProjectId)
+      })).filter((category: ProjectCategoryGantt) => 
+        category.projects.length > 0
       );
     }
     
@@ -144,7 +147,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }
     
     return result;
-  }, [viewMode, projectId, selectedCategory, searchQuery, ganttData, selectedProjectId]);
+  }, [selectedProject, selectedCategory, searchQuery, ganttData]);
 
   const totalTaskCount = useMemo(() => {
     return filteredCategories.reduce((sum, category) => 
@@ -1299,52 +1302,27 @@ const GanttChart: React.FC<GanttChartProps> = ({
           <div className="gantt-control-group">
             <div className="gantt-control-item">
               <AppstoreOutlined className="gantt-control-icon" />
-              <span className="gantt-control-label">视图模式</span>
+              <span className="gantt-control-label">项目</span>
             </div>
             <Select
-              value={viewMode}
-              onChange={(value) => {
-                setViewMode(value);
-                if (value === 'all') {
-                  setSelectedProjectId(null);
-                }
-              }}
+              value={selectedProject}
+              onChange={(value) => setSelectedProject(value)}
               className="gantt-control-select"
+              showSearch
+              optionFilterProp="children"
+              allowClear
             >
-              <Option value="all">
+              <Option value={null}>
                 <UnorderedListOutlined className="gantt-option-icon" />
                 <span>所有项目</span>
               </Option>
-              <Option value="single">
-                <BarsOutlined className="gantt-option-icon" />
-                <span>单个项目</span>
-              </Option>
+              {allProjects.map(project => (
+                <Option key={project.id} value={project.id}>
+                  {project.name}
+                </Option>
+              ))}
             </Select>
           </div>
-
-          {viewMode === 'single' && (
-            <div className="gantt-control-group">
-              <div className="gantt-control-item">
-                <FolderOutlined className="gantt-control-icon" />
-                <span className="gantt-control-label">选择项目</span>
-              </div>
-              <Select
-                value={selectedProjectId}
-                onChange={(value) => setSelectedProjectId(value)}
-                className="gantt-control-select"
-                placeholder="请选择项目"
-                showSearch
-                optionFilterProp="children"
-                allowClear
-              >
-                {allProjects.map(project => (
-                  <Option key={project.id} value={project.id}>
-                    {project.name}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-          )}
 
           <div className="gantt-control-group">
             <div className="gantt-control-item">
