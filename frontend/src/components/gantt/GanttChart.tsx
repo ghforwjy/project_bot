@@ -8,30 +8,50 @@ import './GanttChart.css';
 
 const { Option } = Select;
 
-// 搜索输入组件 - 独立的组件避免焦点问题
+// 搜索输入组件 - 使用内部状态避免焦点问题
 const SearchInput: React.FC<{
-  value: string;
-  onChange: (value: string) => void;
-  onSearch: () => void;
-}> = ({ value, onChange, onSearch }) => {
+  onSearch: (value: string) => void;
+}> = React.memo(({ onSearch }) => {
+  const [localValue, setLocalValue] = useState('');
+  
+  const handleSearch = useCallback(() => {
+    onSearch(localValue);
+  }, [localValue, onSearch]);
+  
   return (
     <>
       <Input
         placeholder="输入任务名称或描述..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onPressEnter={onSearch}
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onPressEnter={handleSearch}
         className="gantt-control-input"
       />
       <Button
         icon={<SearchOutlined />}
-        onClick={onSearch}
+        onClick={handleSearch}
         className="gantt-control-button"
       >
         搜索
       </Button>
     </>
   );
+});
+
+// 搜索状态管理 hook
+const useSearchState = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // 使用 useCallback 缓存回调函数，避免每次渲染都创建新函数
+  const handleSearch = useCallback((value: string) => {
+    setSearchQuery(value);
+  }, []);
+  
+  return {
+    searchQuery,
+    setSearchQuery,
+    handleSearch
+  };
 };
 
 //甘特图组件
@@ -51,8 +71,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
     projects: {}
   });
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchInputValue, setSearchInputValue] = useState('');
+  const {
+    searchQuery,
+    setSearchQuery,
+    handleSearch
+  } = useSearchState();
   const [selectedProject, setSelectedProject] = useState<number | null>(null); // null表示所有项目
   const [categories, setCategories] = useState<ProjectCategoryGantt[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -1283,94 +1306,105 @@ const GanttChart: React.FC<GanttChartProps> = ({
   };
 
   // 控制栏组件
-  const ControlBar = () => {
-    // 获取所有项目列表用于选择
-    const allProjects = useMemo(() => {
-      if (!ganttData?.project_categories) return [];
-      const projects: { id: number; name: string }[] = [];
-      ganttData.project_categories.forEach(category => {
-        category.projects.forEach(project => {
-          projects.push({ id: project.id, name: project.name });
-        });
+interface ControlBarProps {
+  ganttData: AllGanttData | undefined;
+  selectedProject: number | null;
+  setSelectedProject: (value: number | null) => void;
+  selectedCategory: number | null;
+  setSelectedCategory: (value: number | null) => void;
+  handleSearch: (value: string) => void;
+  totalTaskCount: number;
+}
+
+const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  setSelectedProject,  selectedCategory,  setSelectedCategory,  handleSearch,  totalTaskCount}) => {
+  // 获取所有项目列表用于选择
+  const allProjects = useMemo(() => {
+    if (!ganttData?.project_categories) return [];
+    const projects: { id: number; name: string }[] = [];
+    ganttData.project_categories.forEach(category => {
+      category.projects.forEach(project => {
+        projects.push({ id: project.id, name: project.name });
       });
-      return projects;
-    }, [ganttData]);
+    });
+    return projects;
+  }, [ganttData]);
 
-    return (
-      <div className="gantt-control-bar">
-        <div className="gantt-control-bar-main">
-          <div className="gantt-control-group">
-            <div className="gantt-control-item">
-              <AppstoreOutlined className="gantt-control-icon" />
-              <span className="gantt-control-label">项目</span>
-            </div>
-            <Select
-              value={selectedProject}
-              onChange={(value) => setSelectedProject(value)}
-              className="gantt-control-select"
-              showSearch
-              optionFilterProp="children"
-              allowClear
-            >
-              <Option value={null}>
-                <UnorderedListOutlined className="gantt-option-icon" />
-                <span>所有项目</span>
+  return (
+    <div className="gantt-control-bar">
+      <div className="gantt-control-bar-main">
+        <div className="gantt-control-group">
+          <div className="gantt-control-item">
+            <AppstoreOutlined className="gantt-control-icon" />
+            <span className="gantt-control-label">项目</span>
+          </div>
+          <Select
+            value={selectedProject}
+            onChange={(value) => setSelectedProject(value)}
+            className="gantt-control-select"
+            showSearch
+            optionFilterProp="children"
+            allowClear
+          >
+            <Option value={null}>
+              <UnorderedListOutlined className="gantt-option-icon" />
+              <span>所有项目</span>
+            </Option>
+            {allProjects.map(project => (
+              <Option key={project.id} value={project.id}>
+                {project.name}
               </Option>
-              {allProjects.map(project => (
-                <Option key={project.id} value={project.id}>
-                  {project.name}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="gantt-control-group">
-            <div className="gantt-control-item">
-              <FolderOutlined className="gantt-control-icon" />
-              <span className="gantt-control-label">项目大类</span>
-            </div>
-            <Select
-              value={selectedCategory}
-              onChange={(value) => setSelectedCategory(value)}
-              className="gantt-control-select"
-              allowClear
-              placeholder="全部"
-            >
-              <Option value={null}>
-                <span>全部</span>
-              </Option>
-              {ganttData?.project_categories.map(category => (
-                <Option key={category.id} value={category.id}>
-                  <span>{category.name}</span>
-                  <span className="gantt-option-count">
-                    ({category.projects.length})
-                  </span>
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="gantt-control-group">
-            <div className="gantt-control-item">
-              <SearchOutlined className="gantt-control-icon" />
-              <span className="gantt-control-label">搜索任务</span>
-            </div>
-            <SearchInput
-              value={searchInputValue}
-              onChange={setSearchInputValue}
-              onSearch={() => setSearchQuery(searchInputValue)}
-            />
-          </div>
+            ))}
+          </Select>
         </div>
 
-        <div className="gantt-control-bar-status">
-          <span className="gantt-status-text">
-            找到 <strong>{totalTaskCount}</strong> 个任务
-          </span>
+        <div className="gantt-control-group">
+          <div className="gantt-control-item">
+            <FolderOutlined className="gantt-control-icon" />
+            <span className="gantt-control-label">项目大类</span>
+          </div>
+          <Select
+            value={selectedCategory}
+            onChange={(value) => setSelectedCategory(value)}
+            className="gantt-control-select"
+            allowClear
+            placeholder="全部"
+          >
+            <Option value={null}>
+              <span>全部</span>
+            </Option>
+            {ganttData?.project_categories.map(category => (
+              <Option key={category.id} value={category.id}>
+                <span>{category.name}</span>
+                <span className="gantt-option-count">
+                  ({category.projects.length})
+                </span>
+              </Option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="gantt-control-group">
+          <div className="gantt-control-item">
+            <SearchOutlined className="gantt-control-icon" />
+            <span className="gantt-control-label">搜索任务</span>
+          </div>
+          <SearchInput
+            onSearch={handleSearch}
+          />
         </div>
       </div>
-    );
-  };
+
+      <div className="gantt-control-bar-status">
+        <span className="gantt-status-text">
+          找到 <strong>{totalTaskCount}</strong> 个任务
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// 使用 React.memo 优化 ControlBar 组件
+const MemoizedControlBar = React.memo(ControlBar);
 
   // 图例组件
   const Legend = () => (
@@ -1397,7 +1431,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
   if (isLoading) {
     return (
       <div className={`gantt-container ${className}`} style={{ width }}>
-        <ControlBar />
+        <MemoizedControlBar
+        ganttData={ganttData}
+        selectedProject={selectedProject}
+        setSelectedProject={setSelectedProject}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        handleSearch={handleSearch}
+        totalTaskCount={totalTaskCount}
+      />
         <div className="gantt-loading">
           <Spin tip="加载甘特图数据..." />
         </div>
@@ -1409,7 +1451,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
   if (error) {
     return (
       <div className={`gantt-container ${className}`} style={{ width }}>
-        <ControlBar />
+        <MemoizedControlBar
+          ganttData={ganttData}
+          selectedProject={selectedProject}
+          setSelectedProject={setSelectedProject}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          handleSearch={handleSearch}
+          totalTaskCount={totalTaskCount}
+        />
         <div className="gantt-empty">
           <Empty description="加载失败，请重试" />
         </div>
@@ -1420,7 +1470,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
   return (
     <div className={`gantt-container ${className}`} style={{ width }}>
-      <ControlBar />
+      <ControlBar
+        ganttData={ganttData}
+        selectedProject={selectedProject}
+        setSelectedProject={setSelectedProject}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        handleSearch={handleSearch}
+        totalTaskCount={totalTaskCount}
+      />
       <div className="gantt-chart-wrapper" style={{ overflowX: 'auto', marginBottom: '20px' }}>
         <div 
           ref={chartRef} 
