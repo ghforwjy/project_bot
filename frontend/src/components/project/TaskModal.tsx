@@ -236,14 +236,16 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   // 处理表单提交
   const handleSubmit = (values: any) => {
-    // 格式化日期
+    console.log('[DEBUG] 表单原始值:', values)
+    // 格式化日期 - 使用null而不是undefined，确保后端能接收到清空指令
     const formattedValues = {
       ...values,
-      planned_start_date: values.planned_start_date ? values.planned_start_date.format('YYYY-MM-DD') : undefined,
-      planned_end_date: values.planned_end_date ? values.planned_end_date.format('YYYY-MM-DD') : undefined,
-      actual_start_date: values.actual_start_date ? values.actual_start_date.format('YYYY-MM-DD') : undefined,
-      actual_end_date: values.actual_end_date ? values.actual_end_date.format('YYYY-MM-DD') : undefined
+      planned_start_date: values.planned_start_date ? values.planned_start_date.format('YYYY-MM-DD') : null,
+      planned_end_date: values.planned_end_date ? values.planned_end_date.format('YYYY-MM-DD') : null,
+      actual_start_date: values.actual_start_date ? values.actual_start_date.format('YYYY-MM-DD') : null,
+      actual_end_date: values.actual_end_date ? values.actual_end_date.format('YYYY-MM-DD') : null
     }
+    console.log('[DEBUG] 格式化后的值:', formattedValues)
 
     if (mode === 'add') {
       createTaskMutation.mutate(formattedValues as TaskCreate)

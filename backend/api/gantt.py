@@ -18,7 +18,7 @@ async def get_gantt_data(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     
-    tasks = db.query(Task).filter(Task.project_id == project_id).all()
+    tasks = db.query(Task).filter(Task.project_id == project_id).order_by(Task.order).all()
     
     # 转换为甘特图任务格式
     gantt_tasks = []
@@ -65,7 +65,9 @@ async def get_gantt_data(project_id: int, db: Session = Depends(get_db)):
                 assignee=task.assignee,
                 custom_class=get_task_css_class(task.status),
                 startTimeType=start_time_type,
-                endTimeType=end_time_type
+                endTimeType=end_time_type,
+                project_id=task.project_id,
+                order=task.order or 0
             )
             gantt_tasks.append(gantt_task)
     
@@ -226,7 +228,8 @@ def build_project_gantt(project: Project, db: Session) -> ProjectGantt:
                 custom_class=get_task_css_class(task.status),
                 startTimeType=start_time_type,
                 endTimeType=end_time_type,
-                project_id=project.id
+                project_id=project.id,
+                order=task.order or 0
             )
             gantt_tasks.append(gantt_task)
     

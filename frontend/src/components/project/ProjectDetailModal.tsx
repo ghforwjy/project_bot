@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOutlined, UserOutlined, FileTextOutlined, ClockCircleOutlined, TeamOutlined, CheckOutlined, CloseOutlined, DragOutlined, CloseCircleOutlined, ExclamationCircleOutlined, UpOutlined, DownOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { projectService } from '../../services/projectService'
+import TaskModal from './TaskModal'
 
 interface Task {
   id: number
@@ -56,8 +57,11 @@ const priorityMap: Record<number, { color: string; text: string }> = {
 
 const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projectId, onClose, initialTaskId }) => {
   const queryClient = useQueryClient()
+  
+  // TaskModal相关状态
+  const [taskModalVisible, setTaskModalVisible] = useState(false)
+  const [taskModalMode, setTaskModalMode] = useState<'add' | 'edit'>('edit')
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
-  const [editingTaskData, setEditingTaskData] = useState<any>({})
   
   const [windowPosition, setWindowPosition] = useState({ x: 0, y: 0 })
   const [windowSize, setWindowSize] = useState({ width: 1000, height: 600 })
@@ -102,27 +106,17 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     }
   }, [visible])
   
-  const startEditing = (task: Task) => {
-    const taskWithDayjsDates = {
-      ...task,
-      planned_start_date: task.planned_start_date ? dayjs(task.planned_start_date) : null,
-      planned_end_date: task.planned_end_date ? dayjs(task.planned_end_date) : null,
-      actual_start_date: task.actual_start_date ? dayjs(task.actual_start_date) : null,
-      actual_end_date: task.actual_end_date ? dayjs(task.actual_end_date) : null
-    }
-    setEditingTaskId(task.id)
-    setEditingTaskData(taskWithDayjsDates)
+  // 打开TaskModal编辑任务
+  const openTaskModal = (taskId: number | null, mode: 'add' | 'edit') => {
+    setEditingTaskId(taskId)
+    setTaskModalMode(mode)
+    setTaskModalVisible(true)
   }
   
-  const cancelEditing = () => {
+  // 关闭TaskModal
+  const closeTaskModal = () => {
+    setTaskModalVisible(false)
     setEditingTaskId(null)
-    setEditingTaskData({})
-  }
-  
-  const saveEditing = (taskId: number) => {
-    if (projectId) {
-      updateTaskMutation.mutate({ projectId, taskId, data: editingTaskData })
-    }
   }
   
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -235,31 +229,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
     }
   }, [isDragging, isResizing, handleMouseMove, handleMouseUp])
   
-  const updateTaskMutation = useMutation({
-    mutationFn: async ({ projectId, taskId, data }: { projectId: number; taskId: number; data: any }) => {
-      const formattedData = {
-        ...data,
-        planned_start_date: data.planned_start_date ? data.planned_start_date.format('YYYY-MM-DD') : null,
-        planned_end_date: data.planned_end_date ? data.planned_end_date.format('YYYY-MM-DD') : null,
-        actual_start_date: data.actual_start_date ? data.actual_start_date.format('YYYY-MM-DD') : null,
-        actual_end_date: data.actual_end_date ? data.actual_end_date.format('YYYY-MM-DD') : null
-      }
-      return await projectService.updateTask(projectId, taskId, formattedData)
-    },
-    onSuccess: () => {
-      message.success('任务更新成功')
-      setEditingTaskId(null)
-      setEditingTaskData({})
-      if (projectId) {
-        queryClient.invalidateQueries({ queryKey: ['project', projectId] })
-      }
-    },
-    onError: (error: any) => {
-      // 尝试从错误对象中提取具体的错误信息
-      const errorMessage = error.response?.data?.message || error.message || '任务更新失败';
-      message.error(`任务更新失败: ${errorMessage}`);
-    }
-  })
+
   
   const deleteTaskMutation = useMutation({
     mutationFn: async ({ projectId, taskId }: { projectId: number; taskId: number }) => {
@@ -269,8 +239,6 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       message.success('任务删除成功')
       setDeleteConfirmVisible(false)
       setTaskToDelete(null)
-      setEditingTaskId(null)
-      setEditingTaskData({})
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: ['project', projectId] })
       }
@@ -309,129 +277,43 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       title: '任务名称',
       dataIndex: 'name',
       key: 'name',
-      width: 150,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Input
-              value={editingTaskData.name}
-              onChange={(e) => setEditingTaskData({ ...editingTaskData, name: e.target.value })}
-            />
-          )
-        }
-        return text
-      }
+      width: 150
     },
     {
       title: '描述',
       dataIndex: 'description',
       key: 'description',
-      width: 200,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Input.TextArea
-              value={editingTaskData.description}
-              onChange={(e) => setEditingTaskData({ ...editingTaskData, description: e.target.value })}
-              rows={2}
-            />
-          )
-        }
-        return text
-      }
+      width: 200
     },
     {
       title: '负责人',
       dataIndex: 'assignee',
       key: 'assignee',
-      width: 100,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Input
-              value={editingTaskData.assignee}
-              onChange={(e) => setEditingTaskData({ ...editingTaskData, assignee: e.target.value })}
-            />
-          )
-        }
-        return text
-      }
+      width: 100
     },
     {
       title: '计划开始日期',
       dataIndex: 'planned_start_date',
       key: 'planned_start_date',
-      width: 120,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <DatePicker
-              value={editingTaskData.planned_start_date}
-              onChange={(date) => setEditingTaskData({ ...editingTaskData, planned_start_date: date })}
-              allowClear
-              style={{ width: '100%' }}
-            />
-          )
-        }
-        return text
-      }
+      width: 120
     },
     {
       title: '计划结束日期',
       dataIndex: 'planned_end_date',
       key: 'planned_end_date',
-      width: 120,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <DatePicker
-              value={editingTaskData.planned_end_date}
-              onChange={(date) => setEditingTaskData({ ...editingTaskData, planned_end_date: date })}
-              allowClear
-              style={{ width: '100%' }}
-            />
-          )
-        }
-        return text
-      }
+      width: 120
     },
     {
       title: '实际开始日期',
       dataIndex: 'actual_start_date',
       key: 'actual_start_date',
-      width: 120,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <DatePicker
-              value={editingTaskData.actual_start_date}
-              onChange={(date) => setEditingTaskData({ ...editingTaskData, actual_start_date: date })}
-              allowClear
-              style={{ width: '100%' }}
-            />
-          )
-        }
-        return text
-      }
+      width: 120
     },
     {
       title: '实际结束日期',
       dataIndex: 'actual_end_date',
       key: 'actual_end_date',
-      width: 120,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <DatePicker
-              value={editingTaskData.actual_end_date}
-              onChange={(date) => setEditingTaskData({ ...editingTaskData, actual_end_date: date })}
-              allowClear
-              style={{ width: '100%' }}
-            />
-          )
-        }
-        return text
-      }
+      width: 120
     },
     {
       title: '进度',
@@ -447,32 +329,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       dataIndex: 'status',
       key: 'status',
       width: 80,
-      render: (status: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Select
-              value={editingTaskData.status}
-              onChange={(value) => {
-                if (value === 'delete') {
-                  setTaskToDelete(record)
-                  setDeleteConfirmVisible(true)
-                } else {
-                  setEditingTaskData({ ...editingTaskData, status: value })
-                }
-              }}
-              style={{ width: '100%' }}
-            >
-              <Select.Option value="pending">待开始</Select.Option>
-              <Select.Option value="active">进行中</Select.Option>
-              <Select.Option value="completed">已完成</Select.Option>
-              <Select.Option value="delayed">已延期</Select.Option>
-              <Select.Option value="cancelled">已取消</Select.Option>
-              <Select.Option value="delete" style={{ color: '#ff4d4f' }}>
-                删除
-              </Select.Option>
-            </Select>
-          )
-        }
+      render: (status: string) => {
         return (
           <Tag color={statusMap[status]?.color} size="small">
             {statusMap[status]?.text}
@@ -485,20 +342,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       dataIndex: 'priority',
       key: 'priority',
       width: 80,
-      render: (priority: number, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Select
-              value={editingTaskData.priority}
-              onChange={(value) => setEditingTaskData({ ...editingTaskData, priority: value })}
-              style={{ width: '100%' }}
-            >
-              <Select.Option value={1}>高</Select.Option>
-              <Select.Option value={2}>中</Select.Option>
-              <Select.Option value={3}>低</Select.Option>
-            </Select>
-          )
-        }
+      render: (priority: number) => {
         return (
           <Tag color={priorityMap[priority]?.color} size="small">
             {priorityMap[priority]?.text}
@@ -510,40 +354,13 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
       title: '交付物',
       dataIndex: 'deliverable',
       key: 'deliverable',
-      width: 150,
-      render: (text: string, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Input
-              value={editingTaskData.deliverable}
-              onChange={(e) => setEditingTaskData({ ...editingTaskData, deliverable: e.target.value })}
-            />
-          )
-        }
-        return text
-      }
+      width: 150
     },
     {
       title: '操作',
       key: 'action',
       width: 180,
       render: (_: any, record: Task) => {
-        if (editingTaskId === record.id) {
-          return (
-            <Space size="small">
-              <Button 
-                icon={<CheckOutlined />} 
-                size="small" 
-                onClick={() => saveEditing(record.id)}
-              />
-              <Button 
-                icon={<CloseOutlined />} 
-                size="small" 
-                onClick={cancelEditing}
-              />
-            </Space>
-          )
-        }
         return (
           <Space size="small">
             <Button 
@@ -566,7 +383,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
             />
             <Button 
               size="small" 
-              onClick={() => startEditing(record)}
+              onClick={() => openTaskModal(record.id, 'edit')}
             >
               编辑
             </Button>
@@ -811,6 +628,15 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
           </p>
         </div>
       </Modal>
+      
+      {/* TaskModal对话框 */}
+      <TaskModal
+        visible={taskModalVisible}
+        mode={taskModalMode}
+        projectId={projectId}
+        taskId={editingTaskId}
+        onClose={closeTaskModal}
+      />
     </div>
   )
 }

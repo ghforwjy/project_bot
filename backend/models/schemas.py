@@ -105,6 +105,7 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[int] = Field(None, ge=1, le=3)
     deliverable: Optional[str] = None
+    order: Optional[int] = Field(None, ge=0, description="任务顺序")
 
 
 class TaskResponse(BaseModel):
@@ -144,6 +145,7 @@ class GanttTask(BaseModel):
     startTimeType: Optional[str] = None  # 开始时间类型：actual 或 planned
     endTimeType: Optional[str] = None  # 结束时间类型：actual 或 planned
     project_id: Optional[int] = None  # 项目ID，用于任务点击时定位项目
+    order: Optional[int] = 0  # 任务顺序
 
 
 class GanttData(BaseModel):

@@ -14,6 +14,7 @@ export interface GanttTask {
   actual_start_date: string;
   actual_end_date: string;
   priority: number;
+  order: number; // 任务顺序
   dependencies: string[];
   custom_class?: string;
   phase_id?: string;

@@ -332,6 +332,34 @@
   filter: brightness(1.05);
 }
 
+/* 拖拽状态样式 */
+.gantt-task-bar.dragging {
+  opacity: 0.7;
+  cursor: grabbing;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+  z-index: 100;
+}
+
+/* 拖拽目标位置提示 */
+.gantt-task-bar.drag-over {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  border: 2px dashed #3b82f6;
+}
+
+/* 拖拽指示线 */
+.gantt-drag-indicator {
+  stroke: #3b82f6;
+  stroke-width: 2;
+  stroke-dasharray: 5, 5;
+  pointer-events: none;
+}
+
+/* 拖拽目标高亮 */
+.gantt-task-bar.drop-target {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  filter: brightness(1.1);
+}
+
 .gantt-today-line {
   stroke: #ef4444;
   stroke-width: 2;

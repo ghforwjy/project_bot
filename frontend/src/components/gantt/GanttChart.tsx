@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useQuery } from '@tanstack/react-query';
-import { Spin, Empty, Tooltip, Select, Input, Button } from 'antd';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Spin, Empty, Tooltip, Select, Input, Button, message } from 'antd';
 import { AppstoreOutlined, FolderOutlined, SearchOutlined, CloseCircleOutlined, UnorderedListOutlined, BarsOutlined } from '@ant-design/icons';
 import { AllGanttData, GanttChartProps, GanttData, ProjectCategoryGantt, ProjectGantt, ExpandedStates } from './types';
 import './GanttChart.css';
@@ -45,6 +45,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   onCategoryClick
 }) => {
   const chartRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const [expandedStates, setExpandedStates] = useState<ExpandedStates>({
     categories: {},
     projects: {}
@@ -56,6 +57,23 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [categories, setCategories] = useState<ProjectCategoryGantt[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
+  
+  // 拖拽状态管理
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean;
+    draggedTask: any | null;
+    draggedTaskId: number | null;
+    originalY: number;
+    currentY: number;
+    taskHeight: number;
+  }>({
+    isDragging: false,
+    draggedTask: null,
+    draggedTaskId: null,
+    originalY: 0,
+    currentY: 0,
+    taskHeight: 32 // 任务条高度
+  });
 
   // 获取甘特图数据
   const { data: ganttData, isLoading, error } = useQuery<AllGanttData>({
@@ -69,22 +87,20 @@ const GanttChart: React.FC<GanttChartProps> = ({
       const result = await response.json();
       
       // 处理数据，为每个大类和项目添加颜色
-      if (result.data) {
-        if (result.data.project_categories) {
-          return {
-            project_categories: result.data.project_categories.map((category: any, index: number) => {
-              const categoryColor = getCategoryColor(index);
-              return {
-                ...category,
-                color: categoryColor,
-                projects: category.projects.map((project: any) => ({
-                  ...project,
-                  color: categoryColor
-                }))
-              };
-            })
-          };
-        }
+      if (result.data && result.data.project_categories) {
+        return {
+          project_categories: result.data.project_categories.map((category: any, index: number) => {
+            const categoryColor = getCategoryColor(index);
+            return {
+              ...category,
+              color: categoryColor,
+              projects: category.projects.map((project: any) => ({
+                ...project,
+                color: categoryColor
+              }))
+            };
+          })
+        };
       }
       
       return { project_categories: [] };
@@ -792,11 +808,21 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('font-size', '12px')
       .attr('fill', '#333333')
       .style('cursor', 'pointer')
-      .text(`🔍 ${task.name}`);
+      .text(`🔍 ${task.name}`)
+      .on('mouseover', function() {
+        if (dragState.isDragging) return;
+        showTooltip(svg, task.description || '暂无描述', 60, y + 12, '任务描述', svgWidth);
+      })
+      .on('mouseout', function() {
+        if (dragState.isDragging) return;
+        svg.selectAll('.gantt-tooltip').remove();
+      });
 
     // 渲染任务条
     const taskBar = svg.append('rect')
       .attr('class', 'gantt-task-bar')
+      .attr('data-task-id', task.id)
+      .attr('data-task-order', task.order)
       .attr('x', taskX)
       .attr('y', y - 16)
       .attr('width', taskWidth)
@@ -805,39 +831,234 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('fill', getTaskColor(task.custom_class, task.progress, categoryColor))
       .attr('stroke', adjustColorBrightness(getTaskColor(task.custom_class, task.progress, categoryColor), -30))
       .attr('stroke-width', 1)
-      .style('cursor', 'pointer')
-      .style('transition', 'all 0.2s ease')
-      .on('mouseover', function() {
+      .style('cursor', 'grab')
+      .style('transition', 'all 0.2s ease');
+
+    // 添加拖拽行为
+    const dragBehavior = d3.drag()
+      .on('start', function(event: any) {
+        event.sourceEvent.stopPropagation();
+        const taskId = parseInt(task.id.toString().replace('task_', ''));
+        
+        setDragState({
+          isDragging: true,
+          draggedTask: task,
+          draggedTaskId: taskId,
+          originalY: y - 16,
+          currentY: y - 16,
+          taskHeight: 32
+        });
+        
         d3.select(this)
-          .attr('height', 22)
-          .attr('y', y - 17);
-        
-        const fullStartDate = new Date(task.start).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        const fullEndDate = new Date(task.end).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        const startTypeText = task.startTimeType === 'actual' ? '实际' : '计划';
-        const endTypeText = task.endTimeType === 'actual' ? '实际' : '计划';
-        const statusText = getStatusText(task.custom_class);
-        
-        const tooltipContent = [
-          `开始时间 (${startTypeText}): ${fullStartDate}`,
-          `结束时间 (${endTypeText}): ${fullEndDate}`,
-          `状态: ${statusText}`,
-          `进度: ${task.progress}%`
-        ];
-        
-        showTooltip(svg, tooltipContent, taskX + taskWidth / 2, y - 30, task.name, svgWidth);
+          .style('opacity', '0.7')
+          .style('cursor', 'grabbing')
+          .classed('dragging', true);
       })
-      .on('mouseout', function() {
+      .on('drag', function(event: any) {
+        event.sourceEvent.stopPropagation();
+        // 使用event.y获取当前拖拽位置，减去16使鼠标在任务条中心
+        const newY = event.y - 16;
+        
+        setDragState(prev => ({
+          ...prev,
+          currentY: newY
+        }));
+        
         d3.select(this)
-          .attr('height', 20)
-          .attr('y', y - 16);
+          .attr('y', newY);
         
-        svg.selectAll('.gantt-tooltip').remove();
+        // 移除之前的指示线和高亮
+        svg.selectAll('.gantt-drag-indicator').remove();
+        svg.selectAll('.gantt-task-bar').classed('drop-target', false);
+        
+        // 计算并显示指示线
+        const taskElements = document.querySelectorAll('.gantt-task-bar');
+        let nearestElement: Element | null = null;
+        let minDistance = Infinity;
+        let insertAfter = true;
+        
+        taskElements.forEach((el) => {
+          if (el === this) return;
+          const rect = el.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(centerY - event.sourceEvent.clientY);
+          
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestElement = el;
+            // 判断鼠标在目标元素的上方还是下方
+            insertAfter = event.sourceEvent.clientY > centerY;
+          }
+        });
+        
+        // 显示指示线和目标高亮
+        if (nearestElement && minDistance < 50) {
+          const targetRect = nearestElement.getBoundingClientRect();
+          const svgRect = svg.node().getBoundingClientRect();
+          const indicatorY = insertAfter 
+            ? targetRect.bottom - svgRect.top 
+            : targetRect.top - svgRect.top;
+          
+          // 添加指示线
+          svg.append('line')
+            .attr('class', 'gantt-drag-indicator')
+            .attr('x1', 60)
+            .attr('y1', indicatorY)
+            .attr('x2', svgWidth)
+            .attr('y2', indicatorY);
+          
+          // 高亮目标元素
+          d3.select(nearestElement as any).classed('drop-target', true);
+        }
       })
-      .on('click', function(event) {
-        event.stopPropagation();
-        onTaskClick?.(task);
-      })
+      .on('end', function(event: any) {
+        event.sourceEvent.stopPropagation();
+        
+        // 移除指示线和高亮
+        svg.selectAll('.gantt-drag-indicator').remove();
+        svg.selectAll('.gantt-task-bar').classed('drop-target', false);
+        
+        d3.select(this)
+          .style('opacity', '1')
+          .style('cursor', 'grab')
+          .classed('dragging', false);
+        
+        // 计算目标位置
+        const taskElements = document.querySelectorAll('.gantt-task-bar');
+        let nearestElement: Element | null = null;
+        let minDistance = Infinity;
+        let insertAfter = true;
+        
+        taskElements.forEach((el) => {
+          if (el === this) return;
+          const rect = el.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(centerY - event.sourceEvent.clientY);
+          
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestElement = el;
+            // 判断鼠标在目标元素的上方还是下方
+            insertAfter = event.sourceEvent.clientY > centerY;
+          }
+        });
+        
+        // 如果找到目标位置且距离足够近
+        const taskProjectId = task.project_id || projectId;
+        if (nearestElement && minDistance < 100 && taskProjectId) {
+          const targetOrderAttr = nearestElement.getAttribute('data-task-order');
+          const targetOrder = targetOrderAttr ? parseInt(targetOrderAttr) : task.order;
+          
+          // 计算新的order值
+          let newOrder = targetOrder;
+          if (insertAfter) {
+            newOrder = targetOrder + 1;
+          }
+          
+          // 获取任务ID
+          const taskId = parseInt(task.id.toString().replace('task_', ''));
+          
+          console.log('准备更新任务顺序:', {
+            taskId,
+            taskProjectId,
+            oldOrder: task.order,
+            newOrder,
+            targetOrder,
+            insertAfter
+          });
+          
+          // 如果位置发生变化，更新任务顺序
+          if (newOrder !== task.order) {
+            // 调用API更新任务顺序
+            fetch(`/api/v1/projects/${taskProjectId}/tasks/${taskId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ order: newOrder })
+            })
+            .then(response => {
+              console.log('API响应状态:', response.status);
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+              return response.json();
+            })
+            .then(data => {
+              console.log('API响应数据:', data);
+              message.success('任务顺序已更新');
+              // 使用React Query刷新甘特图数据，而不是整页刷新
+              queryClient.invalidateQueries({ queryKey: ['gantt', projectId || 'all'] });
+            })
+            .catch(error => {
+              console.error('更新任务顺序失败:', error);
+              // 恢复原始位置
+              d3.select(this).attr('y', y - 16);
+            });
+          } else {
+            // 恢复原始位置
+            d3.select(this).attr('y', y - 16);
+          }
+        } else {
+          console.log('未满足更新条件:', {
+            hasNearestElement: !!nearestElement,
+            minDistance,
+            taskProjectId,
+            projectId
+          });
+          // 恢复原始位置
+          d3.select(this).attr('y', y - 16);
+        }
+        
+        setDragState({
+          isDragging: false,
+          draggedTask: null,
+          draggedTaskId: null,
+          originalY: 0,
+          currentY: 0,
+          taskHeight: 32
+        });
+      });
+    
+    taskBar.call(dragBehavior as any);
+
+    // 添加鼠标事件（仅在非拖拽状态下）
+    taskBar.on('mouseover', function() {
+      if (dragState.isDragging) return;
+      
+      d3.select(this)
+        .attr('height', 22)
+        .attr('y', y - 17);
+      
+      const fullStartDate = new Date(task.start).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const fullEndDate = new Date(task.end).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const startTypeText = task.startTimeType === 'actual' ? '实际' : '计划';
+      const endTypeText = task.endTimeType === 'actual' ? '实际' : '计划';
+      const statusText = getStatusText(task.custom_class);
+      
+      const tooltipContent = [
+        `开始时间 (${startTypeText}): ${fullStartDate}`,
+        `结束时间 (${endTypeText}): ${fullEndDate}`,
+        `状态: ${statusText}`,
+        `进度: ${task.progress}%`
+      ];
+      
+      showTooltip(svg, tooltipContent, taskX + taskWidth / 2, y - 30, task.name, svgWidth);
+    })
+    .on('mouseout', function() {
+      if (dragState.isDragging) return;
+      
+      d3.select(this)
+        .attr('height', 20)
+        .attr('y', y - 16);
+      
+      svg.selectAll('.gantt-tooltip').remove();
+    })
+    .on('click', function(event) {
+      if (dragState.isDragging) return;
+      event.stopPropagation();
+      onTaskClick?.(task);
+    });
 
     // 渲染任务进度
     if (task.progress > 0) {

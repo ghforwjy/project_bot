@@ -102,6 +102,7 @@ export const projectService = {
 
   // 更新任务
   updateTask: async (projectId: number, taskId: number, data: TaskUpdate) => {
+    console.log('[DEBUG] projectService.updateTask 发送数据:', data)
     const response = await api.put(`/projects/${projectId}/tasks/${taskId}`, data)
     return response.data
   },
