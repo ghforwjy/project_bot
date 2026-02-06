@@ -114,8 +114,13 @@ def parse_ai_instructions(ai_content: str) -> list:
             for json_str in json_matches:
                 try:
                     instruction = json.loads(json_str)
-                    instructions.append(instruction)
-                    logger.info(f"从AI回复中解析到JSON指令: {json_str}")
+                    # 如果解析出的是列表，展开它
+                    if isinstance(instruction, list):
+                        instructions.extend(instruction)
+                        logger.info(f"从AI回复中解析到JSON指令数组，包含 {len(instruction)} 个指令")
+                    else:
+                        instructions.append(instruction)
+                        logger.info(f"从AI回复中解析到JSON指令: {json_str}")
                 except json.JSONDecodeError as e:
                     logger.error(f"解析JSON指令失败: {str(e)}")
             
@@ -431,177 +436,185 @@ async def send_message(
             ai_instructions = parse_ai_instructions(ai_content)
             logger.info(f"从AI回复中解析的指令: {ai_instructions}")
             
-            # 执行操作（取第一个有效的指令）
+            # 执行操作（遍历执行所有有效的指令）
             from core.project_service import get_project_service
             
-            # 取第一个指令
-            first_instruction = ai_instructions[0] if ai_instructions else {}
-            
-            if first_instruction.get("intent") and first_instruction["intent"] != "unknown":
+            # 遍历所有指令
+            if ai_instructions:
+                logger.info(f"开始执行 {len(ai_instructions)} 个指令")
                 project_service = get_project_service(db)
-                intent = first_instruction["intent"]
-                data = first_instruction.get("data", {})
                 
-                # 项目操作
-                if intent == "create_project" and data.get("project_name"):
-                    extracted_info = {
-                        "project_name": data.get("project_name"),
-                        "description": data.get("description"),
-                        "start_date": data.get("start_date"),
-                        "end_date": data.get("end_date"),
-                        "tasks": data.get("tasks", [])
-                    }
-                    result = project_service.create_project(extracted_info)
-                    logger.info(f"创建项目结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                    else:
-                        ai_content += f"\n\n操作失败: {result['message']}"
-                
-                elif intent == "query_project" and data.get("project_name"):
-                    result = project_service.get_project(data["project_name"])
-                    logger.info(f"查询项目结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n项目信息: {result['message']}"
-                        if result['data']:
-                            ai_content += f"\n进度: {result['data'].get('progress', 0)}%"
-                            ai_content += f"\n状态: {result['data'].get('status', '未知')}"
-                    else:
-                        ai_content += f"\n\n查询失败: {result['message']}"
-                
-                elif intent == "create_task" and data.get("project_name"):
-                    tasks = data.get("tasks", [])
-                    for task in tasks:
-                        if task.get("name"):
-                            result = project_service.create_task(data["project_name"], task)
-                            logger.info(f"创建任务结果: {result}")
-                            if result["success"]:
-                                ai_content += f"\n\n任务操作结果: {result['message']}"
-                            else:
-                                ai_content += f"\n\n任务操作失败: {result['message']}"
-                
-                elif intent == "update_task" and data.get("project_name"):
-                    tasks = data.get("tasks", [])
-                    for task in tasks:
-                        if task.get("name"):
-                            result = project_service.create_task(data["project_name"], task)
-                            logger.info(f"更新任务结果: {result}")
-                            if result["success"]:
-                                ai_content += f"\n\n任务操作结果: {result['message']}"
-                            else:
-                                ai_content += f"\n\n任务操作失败: {result['message']}"
-                
-                elif intent == "delete_project" and data.get("project_name"):
-                    result = project_service.delete_project(data["project_name"])
-                    logger.info(f"删除项目结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                    else:
-                        ai_content += f"\n\n操作失败: {result['message']}"
-                
-                # 项目大类操作
-                elif intent == "create_category" and data.get("category_name"):
-                    category_data = {
-                        "name": data.get("category_name"),
-                        "description": data.get("description")
-                    }
-                    result = project_service.create_category(category_data)
-                    logger.info(f"创建项目大类结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                    else:
-                        ai_content += f"\n\n操作失败: {result['message']}"
-                
-                elif intent == "update_category" and data.get("category_name"):
-                    category_data = {
-                        "name": data.get("category_name"),
-                        "description": data.get("description")
-                    }
-                    result = project_service.update_category(category_data)
-                    logger.info(f"更新项目大类结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                    else:
-                        ai_content += f"\n\n操作失败: {result['message']}"
-                
-                elif intent == "delete_category" and data.get("category_name"):
-                    result = project_service.delete_category(data["category_name"])
-                    logger.info(f"删除项目大类结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                    else:
-                        ai_content += f"\n\n操作失败: {result['message']}"
-                
-                elif intent == "query_category":
-                    if data.get("category_name"):
-                        result = project_service.get_category(data["category_name"])
-                    else:
-                        result = project_service.get_categories()
-                    logger.info(f"查询项目大类结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                        if result['data']:
-                            if isinstance(result['data'], list):
-                                ai_content += f"\n项目大类列表:"
-                                for category in result['data']:
-                                    ai_content += f"\n- {category['name']} (项目数: {category.get('project_count', 0)})"
-                            else:
-                                ai_content += f"\n项目大类: {result['data']['name']}"
-                                ai_content += f"\n描述: {result['data']['description']}"
-                                ai_content += f"\n项目数: {result['data'].get('project_count', 0)}"
-                    else:
-                        ai_content += f"\n\n操作失败: {result['message']}"
-                
-                elif intent == "assign_category" and data.get("project_name") and data.get("category_name"):
-                    # 执行为项目指定大类操作
-                    project_name = data.get("project_name")
-                    category_name = data.get("category_name")
-                    result = project_service.assign_category(project_name, category_name)
-                    logger.info(f"为项目指定大类结果: {result}")
-                    if result["success"]:
-                        ai_content += f"\n\n操作结果: {result['message']}"
-                    else:
-                        # 检查是否有建议列表
-                        if result.get('data') and isinstance(result['data'], dict) and result['data'].get('suggestions'):
-                            suggestions = result['data']['suggestions']
-                            field = result['data'].get('field', '')
-                            original_value = result['data'].get('original_value', '')
-                            
-                            if field == 'project_name':
-                                # 项目不存在，生成确认回复
-                                ai_content += f"\n\n我没有找到名为'{original_value}'的项目。"
-                                if suggestions:
-                                    ai_content += f"\n您是否指的是以下项目？"
-                                    for i, suggestion in enumerate(suggestions, 1):
-                                        ai_content += f"\n{i}. {suggestion}"
-                                    ai_content += f"\n\n请确认是哪个项目，或者提供正确的项目名称。"
-                                else:
-                                    ai_content += f"\n当前系统中没有项目，请先创建项目。"
-                            elif field == 'category_name':
-                                # 大类不存在，生成确认回复
-                                ai_content += f"\n\n我没有找到名为'{original_value}'的项目大类。"
-                                if suggestions:
-                                    ai_content += f"\n您是否指的是以下大类？"
-                                    for i, suggestion in enumerate(suggestions, 1):
-                                        ai_content += f"\n{i}. {suggestion}"
-                                    ai_content += f"\n\n请确认是哪个大类，或者提供正确的大类名称。"
-                                else:
-                                    ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
-                        else:
-                            # 没有建议列表，直接显示错误
-                            ai_content += f"\n\n操作失败: {result['message']}"
-                
-                elif intent == "delete_task" and data.get("project_name"):
-                    tasks = data.get("tasks", [])
-                    for task in tasks:
-                        if task.get("name"):
-                            task_name = task.get("name")
-                            result = project_service.delete_task(data["project_name"], task_name)
-                            logger.info(f"删除任务结果: {result}")
+                for i, instruction in enumerate(ai_instructions, 1):
+                    if instruction.get("intent") and instruction["intent"] != "unknown":
+                        logger.info(f"执行第 {i} 个指令: {instruction['intent']}")
+                        intent = instruction["intent"]
+                        data = instruction.get("data", {})
+                        
+                        # 项目操作
+                        if intent == "create_project" and data.get("project_name"):
+                            extracted_info = {
+                                "project_name": data.get("project_name"),
+                                "description": data.get("description"),
+                                "start_date": data.get("start_date"),
+                                "end_date": data.get("end_date"),
+                                "tasks": data.get("tasks", [])
+                            }
+                            result = project_service.create_project(extracted_info)
+                            logger.info(f"创建项目结果: {result}")
                             if result["success"]:
                                 ai_content += f"\n\n操作结果: {result['message']}"
                             else:
                                 ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        elif intent == "query_project" and data.get("project_name"):
+                            result = project_service.get_project(data["project_name"])
+                            logger.info(f"查询项目结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n项目信息: {result['message']}"
+                                if result['data']:
+                                    ai_content += f"\n进度: {result['data'].get('progress', 0)}%"
+                                    ai_content += f"\n状态: {result['data'].get('status', '未知')}"
+                            else:
+                                ai_content += f"\n\n查询失败: {result['message']}"
+                        
+                        elif intent == "create_task" and data.get("project_name"):
+                            tasks = data.get("tasks", [])
+                            for task in tasks:
+                                if task.get("name"):
+                                    result = project_service.create_task(data["project_name"], task)
+                                    logger.info(f"创建任务结果: {result}")
+                                    if result["success"]:
+                                        ai_content += f"\n\n任务操作结果: {result['message']}"
+                                    else:
+                                        ai_content += f"\n\n任务操作失败: {result['message']}"
+                        
+                        elif intent == "update_task" and data.get("project_name"):
+                            tasks = data.get("tasks", [])
+                            for task in tasks:
+                                if task.get("name"):
+                                    result = project_service.create_task(data["project_name"], task)
+                                    logger.info(f"更新任务结果: {result}")
+                                    if result["success"]:
+                                        ai_content += f"\n\n任务操作结果: {result['message']}"
+                                    else:
+                                        ai_content += f"\n\n任务操作失败: {result['message']}"
+                        
+                        elif intent == "delete_project" and data.get("project_name"):
+                            result = project_service.delete_project(data["project_name"])
+                            logger.info(f"删除项目结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                            else:
+                                ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        # 项目大类操作
+                        elif intent == "create_category" and data.get("category_name"):
+                            category_data = {
+                                "name": data.get("category_name"),
+                                "description": data.get("description")
+                            }
+                            result = project_service.create_category(category_data)
+                            logger.info(f"创建项目大类结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                            else:
+                                ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        elif intent == "update_category" and data.get("category_name"):
+                            category_data = {
+                                "name": data.get("category_name"),
+                                "description": data.get("description")
+                            }
+                            result = project_service.update_category(category_data)
+                            logger.info(f"更新项目大类结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                            else:
+                                ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        elif intent == "delete_category" and data.get("category_name"):
+                            result = project_service.delete_category(data["category_name"])
+                            logger.info(f"删除项目大类结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                            else:
+                                ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        elif intent == "query_category":
+                            if data.get("category_name"):
+                                result = project_service.get_category(data["category_name"])
+                            else:
+                                result = project_service.get_categories()
+                            logger.info(f"查询项目大类结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                                if result['data']:
+                                    if isinstance(result['data'], list):
+                                        ai_content += f"\n项目大类列表:"
+                                        for category in result['data']:
+                                            ai_content += f"\n- {category['name']} (项目数: {category.get('project_count', 0)})"
+                                    else:
+                                        ai_content += f"\n项目大类: {result['data']['name']}"
+                                        ai_content += f"\n描述: {result['data']['description']}"
+                                        ai_content += f"\n项目数: {result['data'].get('project_count', 0)}"
+                            else:
+                                ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        elif intent == "assign_category" and data.get("project_name") and data.get("category_name"):
+                            # 执行为项目指定大类操作
+                            project_name = data.get("project_name")
+                            category_name = data.get("category_name")
+                            result = project_service.assign_category(project_name, category_name)
+                            logger.info(f"为项目指定大类结果: {result}")
+                            if result["success"]:
+                                ai_content += f"\n\n操作结果: {result['message']}"
+                            else:
+                                # 检查是否有建议列表
+                                if result.get('data') and isinstance(result['data'], dict) and result['data'].get('suggestions'):
+                                    suggestions = result['data']['suggestions']
+                                    field = result['data'].get('field', '')
+                                    original_value = result['data'].get('original_value', '')
+                                    
+                                    if field == 'project_name':
+                                        # 项目不存在，生成确认回复
+                                        ai_content += f"\n\n我没有找到名为'{original_value}'的项目。"
+                                        if suggestions:
+                                            ai_content += f"\n您是否指的是以下项目？"
+                                            for i, suggestion in enumerate(suggestions, 1):
+                                                ai_content += f"\n{i}. {suggestion}"
+                                            ai_content += f"\n\n请确认是哪个项目，或者提供正确的项目名称。"
+                                        else:
+                                            ai_content += f"\n当前系统中没有项目，请先创建项目。"
+                                    elif field == 'category_name':
+                                        # 大类不存在，生成确认回复
+                                        ai_content += f"\n\n我没有找到名为'{original_value}'的项目大类。"
+                                        if suggestions:
+                                            ai_content += f"\n您是否指的是以下大类？"
+                                            for i, suggestion in enumerate(suggestions, 1):
+                                                ai_content += f"\n{i}. {suggestion}"
+                                            ai_content += f"\n\n请确认是哪个大类，或者提供正确的大类名称。"
+                                        else:
+                                            ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
+                                else:
+                                    # 没有建议列表，直接显示错误
+                                    ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                        elif intent == "delete_task" and data.get("project_name"):
+                            tasks = data.get("tasks", [])
+                            for task in tasks:
+                                if task.get("name"):
+                                    task_name = task.get("name")
+                                    result = project_service.delete_task(data["project_name"], task_name)
+                                    logger.info(f"删除任务结果: {result}")
+                                    if result["success"]:
+                                        ai_content += f"\n\n操作结果: {result['message']}"
+                                    else:
+                                        ai_content += f"\n\n操作失败: {result['message']}"
+                        
+                    else:
+                        logger.info(f"跳过无效指令: {instruction}")
+            
+            logger.info(f"指令执行完成")
 
         else:
             # 如果没有配置LLM，返回模拟回复

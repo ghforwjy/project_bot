@@ -326,7 +326,7 @@ class ProjectService:
         删除项目
 
         Args:
-            project_name: 项目名称
+            project_name: 项目名称（字符串）或项目名称列表
 
         Returns:
             Dict: 删除结果
@@ -340,6 +340,71 @@ class ProjectService:
                     "data": None
                 }
             
+            # 如果是列表，批量删除
+            if isinstance(project_name, list):
+                if not project_name:
+                    return {
+                        "success": False,
+                        "message": "项目名称列表不能为空",
+                        "data": None
+                    }
+                
+                deleted_projects = []
+                failed_projects = []
+                
+                for name in project_name:
+                    try:
+                        # 查找项目
+                        project = self.db.query(Project).filter(
+                            Project.name == name
+                        ).first()
+                        
+                        if project:
+                            # 删除项目（级联删除相关任务）
+                            deleted_projects.append(project.name)
+                            self.db.delete(project)
+                        else:
+                            failed_projects.append(f"项目 '{name}' 不存在")
+                    except Exception as e:
+                        failed_projects.append(f"删除项目 '{name}' 失败: {str(e)}")
+                
+                # 提交事务
+                if deleted_projects:
+                    self.db.commit()
+                else:
+                    self.db.rollback()
+                
+                # 生成结果消息
+                if deleted_projects:
+                    if failed_projects:
+                        success_message = f"成功删除项目: {', '.join(deleted_projects)}"
+                        error_message = f"\n失败项目: {'; '.join(failed_projects)}"
+                        return {
+                            "success": True,
+                            "message": success_message + error_message,
+                            "data": {
+                                "deleted_projects": deleted_projects,
+                                "failed_projects": failed_projects
+                            }
+                        }
+                    else:
+                        return {
+                            "success": True,
+                            "message": f"成功删除项目: {', '.join(deleted_projects)}",
+                            "data": {
+                                "deleted_projects": deleted_projects
+                            }
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"删除项目失败: {'; '.join(failed_projects)}",
+                        "data": {
+                            "failed_projects": failed_projects
+                        }
+                    }
+            
+            # 如果是字符串，删除单个项目
             # 查找项目
             project = self.db.query(Project).filter(
                 Project.name == project_name
