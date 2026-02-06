@@ -257,7 +257,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   if (!visible) return null
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1002 }}>
       <div 
         ref={windowRef}
         style={{
@@ -272,7 +272,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          zIndex: 1001
+          zIndex: 1003
         }}
       >
         {/* 窗口标题栏 */}
