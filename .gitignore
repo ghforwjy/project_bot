@@ -55,3 +55,17 @@ history/
 # 特定于项目的文件
 start.bat
 start.sh
+
+# FFmpeg大文件
+ffmpeg/
+ffmpeg.zip
+
+# Whisper源码目录
+backend/voice/whisper.cpp-source/
+
+# 模型文件目录
+backend/voice/models/*.bin
+
+# 语音测试文件
+tests/*.wav
+tests/*.mp3
