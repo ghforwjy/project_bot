@@ -294,40 +294,71 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({ onVoiceResult, isDisabled = f
   const stopRecording = () => {
     if (!isRecording) return
     
-    setIsRecording(false)
-    
-    // 停止音频处理
-    if (scriptNodeRef.current) {
-      scriptNodeRef.current.disconnect()
-      scriptNodeRef.current = null
-    }
-    
-    // 关闭麦克风
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop())
-      mediaStreamRef.current = null
-    }
-    
-    // 关闭AudioContext
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-    
-    // 发送结束信号
-    if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
-      websocketRef.current.send(new Uint8Array([69, 78, 68])) // 'END' 字符的ASCII码
+    try {
+      setIsRecording(false)
       
-      // 延迟关闭WebSocket，确保所有数据都已发送
-      setTimeout(() => {
-        if (websocketRef.current) {
-          websocketRef.current.close()
-          websocketRef.current = null
+      // 停止音频处理
+      if (scriptNodeRef.current) {
+        try {
+          scriptNodeRef.current.disconnect()
+        } catch (error) {
+          console.error('停止音频处理失败:', error)
         }
-      }, 500)
+        scriptNodeRef.current = null
+      }
+      
+      // 关闭麦克风
+      if (mediaStreamRef.current) {
+        try {
+          mediaStreamRef.current.getTracks().forEach(track => {
+            try {
+              track.stop()
+            } catch (error) {
+              console.error('停止麦克风轨道失败:', error)
+            }
+          })
+        } catch (error) {
+          console.error('关闭麦克风失败:', error)
+        }
+        mediaStreamRef.current = null
+      }
+      
+      // 关闭AudioContext
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close()
+        } catch (error) {
+          console.error('关闭AudioContext失败:', error)
+        }
+        audioContextRef.current = null
+      }
+      
+      // 发送结束信号
+      if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
+        try {
+          websocketRef.current.send(new Uint8Array([69, 78, 68])) // 'END' 字符的ASCII码
+          
+          // 延迟关闭WebSocket，确保所有数据都已发送
+          setTimeout(() => {
+            if (websocketRef.current) {
+              try {
+                websocketRef.current.close()
+              } catch (error) {
+                console.error('关闭WebSocket失败:', error)
+              }
+              websocketRef.current = null
+            }
+          }, 500)
+        } catch (error) {
+          console.error('发送结束信号失败:', error)
+        }
+      }
+      
+      message.success('录音已停止')
+    } catch (error) {
+      console.error('停止录音失败:', error)
+      message.error('停止录音失败')
     }
-    
-    message.success('录音已停止')
   }
 
   // 清理函数
@@ -344,10 +375,9 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({ onVoiceResult, isDisabled = f
         icon={isConnecting ? <LoadingOutlined /> : isRecording ? <StopOutlined /> : <AudioOutlined />}
         onClick={isRecording ? stopRecording : startRecording}
         disabled={isDisabled || isConnecting}
-        style={{ marginLeft: 8 }}
-      >
-        {isConnecting ? "连接中..." : isRecording ? "停止" : "语音"}
-      </Button>
+        style={{ width: 40, height: 40 }}
+      />
+
     </Tooltip>
   )
 }

@@ -218,7 +218,8 @@ const ChatPanel: React.FC = () => {
               <div className={`flex gap-3 max-w-[90%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <Avatar 
                   icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                  className={msg.role === 'user' ? 'bg-blue-500' : 'bg-green-500'}
+                  className={`${msg.role === 'user' ? 'bg-blue-500' : 'bg-green-500'} flex-shrink-0`}
+                  size={32}
                 />
                 <div 
                   className={`rounded-lg px-4 py-2 ${
@@ -253,7 +254,7 @@ const ChatPanel: React.FC = () => {
 
       {/* 输入区域 */}
       <div className="p-4 border-t border-gray-200 bg-gray-50">
-        <div className="flex gap-2">
+        <div className="flex items-end gap-2">
           <TextArea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -261,14 +262,15 @@ const ChatPanel: React.FC = () => {
             placeholder="输入消息... (Enter发送, Shift+Enter换行)"
             autoSize={{ minRows: 2, maxRows: 6 }}
             disabled={isLoading}
+            style={{ flex: 1 }}
           />
-          <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
             <Button
               type="primary"
               icon={<SendOutlined />}
               onClick={handleSend}
               loading={isLoading}
-              className="h-auto"
+              style={{ width: 40, height: 40 }}
             />
             <VoiceButton 
               onVoiceResult={handleVoiceResult} 

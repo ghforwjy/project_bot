@@ -321,6 +321,144 @@ class ProjectService:
         }
         return priority_map.get(priority.lower(), 2) if priority else 2
     
+    def update_task(self, project_name: str, task_name: str, task_data: Dict) -> Dict:
+        """
+        更新任务
+
+        Args:
+            project_name: 项目名称
+            task_name: 任务名称
+            task_data: 任务数据
+
+        Returns:
+            Dict: 更新后的任务信息
+        """
+        try:
+            import logging
+            # 确保日志格式包含模块名称
+            if not logging.getLogger().handlers:
+                logging.basicConfig(
+                    level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                )
+            logger = logging.getLogger(__name__)
+            logger.debug(f"[core.project_service] 开始执行update_task方法，项目名称: {project_name}, 任务名称: {task_name}")
+            logger.debug(f"[core.project_service] 任务数据: {task_data}")
+            
+            # 验证参数
+            if not project_name:
+                logger.error("[core.project_service] 项目名称不能为空")
+                return {
+                    "success": False,
+                    "message": "项目名称不能为空",
+                    "data": None
+                }
+            
+            if not task_name:
+                logger.error("[core.project_service] 任务名称不能为空")
+                return {
+                    "success": False,
+                    "message": "任务名称不能为空",
+                    "data": None
+                }
+
+            # 查找项目
+            logger.debug(f"[core.project_service] 查找项目: {project_name}")
+            project = self.db.query(Project).filter(
+                Project.name == project_name
+            ).first()
+
+            if not project:
+                logger.error(f"[core.project_service] 项目 '{project_name}' 不存在")
+                return {
+                    "success": False,
+                    "message": f"项目 '{project_name}' 不存在",
+                    "data": None
+                }
+            logger.debug(f"[core.project_service] 找到项目: {project.name}, ID: {project.id}")
+
+            # 查找任务
+            logger.debug(f"[core.project_service] 查找任务: {task_name} 在项目: {project.name}")
+            task = self.db.query(Task).filter(
+                Task.project_id == project.id,
+                Task.name == task_name
+            ).first()
+            
+            if not task:
+                logger.error(f"[core.project_service] 任务 '{task_name}' 不存在于项目 '{project_name}' 中")
+                return {
+                    "success": False,
+                    "message": f"任务 '{task_name}' 不存在于项目 '{project_name}' 中",
+                    "data": None
+                }
+            logger.debug(f"[core.project_service] 找到任务: {task.name}, ID: {task.id}")
+
+            # 准备更新数据
+            logger.debug("[core.project_service] 准备更新数据")
+            update_data = {}
+            if "start_date" in task_data:
+                logger.debug(f"[core.project_service] 设置start_date: {task_data['start_date']}")
+                update_data["planned_start_date"] = task_data["start_date"]
+            if "end_date" in task_data:
+                logger.debug(f"[core.project_service] 设置end_date: {task_data['end_date']}")
+                update_data["planned_end_date"] = task_data["end_date"]
+            if "actual_start_date" in task_data:
+                logger.debug(f"[core.project_service] 设置actual_start_date: {task_data['actual_start_date']}")
+                update_data["actual_start_date"] = task_data["actual_start_date"]
+            if "actual_end_date" in task_data:
+                logger.debug(f"[core.project_service] 设置actual_end_date: {task_data['actual_end_date']}")
+                update_data["actual_end_date"] = task_data["actual_end_date"]
+            if "actual_start" in task_data:
+                logger.debug(f"[core.project_service] 设置actual_start: {task_data['actual_start']}")
+                update_data["actual_start_date"] = task_data["actual_start"]
+            if "actual_end" in task_data:
+                logger.debug(f"[core.project_service] 设置actual_end: {task_data['actual_end']}")
+                update_data["actual_end_date"] = task_data["actual_end"]
+            if "assignee" in task_data:
+                logger.debug(f"[core.project_service] 设置assignee: {task_data['assignee']}")
+                update_data["assignee"] = task_data["assignee"]
+            if "priority" in task_data:
+                logger.debug(f"[core.project_service] 设置priority: {task_data['priority']}")
+                priority_value = task_data["priority"]
+                # 使用现有的_get_priority_value方法处理优先级
+                if isinstance(priority_value, str):
+                    priority_value = self._get_priority_value(priority_value)
+                update_data["priority"] = priority_value
+            if "status" in task_data:
+                logger.debug(f"[core.project_service] 设置status: {task_data['status']}")
+                update_data["status"] = task_data["status"]
+            logger.debug(f"[core.project_service] 更新数据准备完成: {update_data}")
+
+            # 使用工具类更新任务
+            from core.task_utils import update_task_in_db
+            from models.schemas import TaskUpdate
+            
+            # 创建 TaskUpdate 对象
+            logger.debug(f"[core.project_service] 创建TaskUpdate对象，数据: {update_data}")
+            task_update = TaskUpdate(**update_data)
+            
+            # 调用工具类方法更新任务
+            logger.debug(f"[core.project_service] 调用update_task_in_db函数更新任务")
+            updated_task = update_task_in_db(task, task_update, self.db)
+            logger.debug(f"[core.project_service] 任务更新成功，ID: {updated_task.id}")
+            
+            return {
+                "success": True,
+                "message": f"任务 '{task.name}' 更新成功",
+                "data": updated_task.to_dict()
+            }
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[core.project_service] 更新任务失败: {str(e)}", exc_info=True)
+            self.db.rollback()
+            return {
+                "success": False,
+                "message": f"更新任务失败: {str(e)}",
+                "data": None
+            }
+    
     def delete_project(self, project_name: str) -> Dict:
         """
         删除项目
