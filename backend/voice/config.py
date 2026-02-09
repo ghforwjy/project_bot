@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class VoiceConfig:
     """语音服务配置"""
     # 服务提供商配置
-    PROVIDER: str = "whisper"  # 服务提供商: whisper or doubao
+    PROVIDER: str = "doubao_streaming"  # 服务提供商: whisper, doubao, doubao_streaming
     
     # Whisper.cpp配置（仅在使用C++版本时使用）
     WHISPER_PATH: str = "voice/whisper.cpp"
@@ -36,6 +36,7 @@ class VoiceConfig:
     
     # 可用的服务提供商列表
     AVAILABLE_PROVIDERS = [
+        {"value": "doubao_streaming", "label": "豆包流式语音 (实时，推荐)", "description": "基于火山引擎的实时流式语音识别服务"},
         {"value": "whisper", "label": "Whisper (本地，支持离线)", "description": "本地运行的语音识别，支持多种模型大小"},
         {"value": "doubao", "label": "豆包语音 (云端，准确率高)", "description": "基于火山引擎的语音识别服务"},
     ]

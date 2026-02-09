@@ -6,8 +6,9 @@ import tempfile
 import logging
 import time
 import traceback
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, WebSocket
 from fastapi.responses import JSONResponse
+from .doubao_streaming_integration import DoubaoStreamingVoiceIntegration
 
 from .whisper_integration import WhisperIntegration
 from .whisper_python_integration import WhisperPythonIntegration
@@ -76,6 +77,12 @@ def get_voice_service():
     elif provider == "doubao":
         current_doubao = DoubaoVoiceIntegration()
         logger.info("使用豆包语音识别集成")
+        current_whisper = None
+        return current_doubao
+    
+    elif provider == "doubao_streaming":
+        current_doubao = DoubaoStreamingVoiceIntegration()
+        logger.info("使用豆包流式语音识别集成")
         current_whisper = None
         return current_doubao
     
@@ -409,3 +416,40 @@ async def configure_voice(
             status_code=500,
             detail=f"配置失败: {str(e)}"
         )
+
+
+@router.websocket("/voice/stream")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    流式语音识别WebSocket端点
+    
+    前端通过WebSocket发送音频数据，后端实时返回识别结果
+    """
+    await websocket.accept()
+    
+    try:
+        # 初始化豆包流式语音识别客户端
+        doubao_streaming = DoubaoStreamingVoiceIntegration()
+        
+        # 检查服务是否可用
+        if not doubao_streaming.is_available():
+            await websocket.send_json({
+                "type": "error",
+                "message": "Doubao streaming voice service not available"
+            })
+            await websocket.close(code=1000, reason="Service not available")
+            return
+        
+        # 处理流式连接
+        await doubao_streaming.handle_stream(websocket)
+        
+    except Exception as e:
+        logger.error(f"WebSocket错误: {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"WebSocket error: {str(e)}"
+            })
+            await websocket.close(code=1000, reason=str(e))
+        except:
+            pass

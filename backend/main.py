@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api import chat, config, gantt, project, task, analytics
+from voice import voice_api
 from models.database import init_db
 
 
@@ -32,10 +33,11 @@ app = FastAPI(
 # CORS配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex="http://localhost:[0-9]+",
 )
 
 # 注册路由
@@ -45,6 +47,7 @@ app.include_router(task.router, prefix="/api/v1", tags=["task"])
 app.include_router(gantt.router, prefix="/api/v1", tags=["gantt"])
 app.include_router(config.router, prefix="/api/v1", tags=["config"])
 app.include_router(analytics.router, prefix="/api/v1", tags=["analytics"])
+app.include_router(voice_api.router, prefix="/api/v1", tags=["voice"])
 
 # 静态文件服务（生产环境）
 if os.path.exists("../frontend/dist"):
@@ -59,4 +62,5 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # 关闭自动重载功能，避免WatchFiles不断检测文件变化
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

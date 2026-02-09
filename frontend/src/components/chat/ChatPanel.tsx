@@ -5,6 +5,7 @@ import { useChatStore } from '../../store/chatStore'
 import AnalysisCollapse from './AnalysisCollapse'
 import ThinkingCollapse from './ThinkingCollapse'
 import MessageContent from './MessageContent'
+import VoiceButton from '../voice/VoiceButton'
 import { ChatMessage } from '../../types'
 import { parseMessage } from '../../utils/messageParser'
 
@@ -47,6 +48,11 @@ const ChatPanel: React.FC = () => {
     
     return analysisKeywords.some(keyword => message.includes(keyword)) || 
            projectQueryKeywords.some(keyword => message.includes(keyword))
+  }
+
+  // 处理语音识别结果
+  const handleVoiceResult = (text: string) => {
+    setInputValue(text)
   }
 
   // 发送消息
@@ -256,13 +262,19 @@ const ChatPanel: React.FC = () => {
             autoSize={{ minRows: 2, maxRows: 6 }}
             disabled={isLoading}
           />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSend}
-            loading={isLoading}
-            className="h-auto"
-          />
+          <div className="flex flex-col gap-2">
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSend}
+              loading={isLoading}
+              className="h-auto"
+            />
+            <VoiceButton 
+              onVoiceResult={handleVoiceResult} 
+              isDisabled={isLoading} 
+            />
+          </div>
         </div>
       </div>
     </div>
