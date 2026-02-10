@@ -262,7 +262,7 @@ async def send_message(
                            "## 需求分类\n\n"+
                            "### 增删改查操作（需要JSON指令）\n"+
                            "以下操作需要返回JSON指令并遵循确认流程：\n"+
-                           "- 创建项目、更新项目、删除项目\n"+
+                           "- 创建项目、更新项目、刷新项目状态、删除项目\n"+
                            "- 创建任务、更新任务、删除任务\n"+
                            "- 创建项目大类、更新项目大类、删除项目大类\n"+
                            "- 为项目指定大类\n\n"+
@@ -288,8 +288,8 @@ async def send_message(
                            "        \"assignee\": \"负责人\",\n"+
                            "        \"start_date\": \"2024-01-01\",\n"+
                            "        \"end_date\": \"2024-01-15\",\n"+
-                           "        \"actual_start\": \"2024-01-01\",\n"+
-                           "        \"actual_end\": \"2024-01-15\",\n"+
+                           "        \"actual_start_date\": \"2024-01-01\",\n"+
+                           "        \"actual_end_date\": \"2024-01-15\",\n"+
                            "        \"priority\": \"high|medium|low\"\n"+
                            "      }\n"+
                            "    ]\n"+
@@ -328,8 +328,8 @@ async def send_message(
                            "        \"assignee\": \"负责人\",\n"+
                            "        \"start_date\": \"2024-01-01\",\n"+
                            "        \"end_date\": \"2024-01-15\",\n"+
-                           "        \"actual_start\": \"2024-01-01\",\n"+
-                           "        \"actual_end\": \"2024-01-15\",\n"+
+                           "        \"actual_start_date\": \"2024-01-01\",\n"+
+                           "        \"actual_end_date\": \"2024-01-15\",\n"+
                            "        \"priority\": \"high|medium|low\"\n"+
                            "      }\n"+
                            "    ]\n"+
@@ -489,6 +489,31 @@ async def send_message(
                                 }
                                 result = project_service.create_project(extracted_info)
                                 logger.info(f"创建项目结果: {result}")
+                                if result["success"]:
+                                    ai_content += f"\n\n操作结果: {result['message']}"
+                                else:
+                                    ai_content += f"\n\n操作失败: {result['message']}"
+                            
+                            elif intent == "update_project" and data.get("project_name"):
+                                logger.debug(f"处理update_project意图，项目名称: {data.get('project_name')}")
+                                extracted_info = {
+                                    "project_name": data.get("project_name"),
+                                    "description": data.get("description"),
+                                    "start_date": data.get("start_date"),
+                                    "end_date": data.get("end_date"),
+                                    "status": data.get("status")
+                                }
+                                result = project_service.update_project(extracted_info)
+                                logger.info(f"更新项目结果: {result}")
+                                if result["success"]:
+                                    ai_content += f"\n\n操作结果: {result['message']}"
+                                else:
+                                    ai_content += f"\n\n操作失败: {result['message']}"
+                            
+                            elif intent == "refresh_project_status" and data.get("project_name"):
+                                logger.debug(f"处理refresh_project_status意图，项目名称: {data.get('project_name')}")
+                                result = project_service.refresh_project_status(data["project_name"])
+                                logger.info(f"刷新项目状态结果: {result}")
                                 if result["success"]:
                                     ai_content += f"\n\n操作结果: {result['message']}"
                                 else:

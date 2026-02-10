@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from models.entities import Project, Task, ProjectCategory
 from models.schemas import ProjectCreate, ProjectUpdate, TaskCreate, TaskUpdate
+from api.project import update_project_summary
 
 
 class ProjectService:
@@ -116,6 +117,9 @@ class ProjectService:
                 project.end_date = datetime.fromisoformat(project_data.get("end_date"))
             if project_data.get("status"):
                 project.status = project_data.get("status")
+            
+            # 更新项目概要信息
+            update_project_summary(project.id, self.db)
             
             self.db.commit()
             self.db.refresh(project)
@@ -302,6 +306,9 @@ class ProjectService:
         self.db.commit()
         self.db.refresh(task)
         
+        # 更新项目概要信息
+        update_project_summary(project_id, self.db)
+        
         return task
     
     def _get_priority_value(self, priority: Optional[str]) -> int:
@@ -408,12 +415,6 @@ class ProjectService:
             if "actual_end_date" in task_data:
                 logger.debug(f"[core.project_service] 设置actual_end_date: {task_data['actual_end_date']}")
                 update_data["actual_end_date"] = task_data["actual_end_date"]
-            if "actual_start" in task_data:
-                logger.debug(f"[core.project_service] 设置actual_start: {task_data['actual_start']}")
-                update_data["actual_start_date"] = task_data["actual_start"]
-            if "actual_end" in task_data:
-                logger.debug(f"[core.project_service] 设置actual_end: {task_data['actual_end']}")
-                update_data["actual_end_date"] = task_data["actual_end"]
             if "assignee" in task_data:
                 logger.debug(f"[core.project_service] 设置assignee: {task_data['assignee']}")
                 update_data["assignee"] = task_data["assignee"]
@@ -441,6 +442,9 @@ class ProjectService:
             logger.debug(f"[core.project_service] 调用update_task_in_db函数更新任务")
             updated_task = update_task_in_db(task, task_update, self.db)
             logger.debug(f"[core.project_service] 任务更新成功，ID: {updated_task.id}")
+            
+            # 更新项目概要信息
+            update_project_summary(task.project_id, self.db)
             
             return {
                 "success": True,
@@ -1026,8 +1030,12 @@ class ProjectService:
             
             # 删除任务
             task_name = task.name
+            project_id = project.id
             self.db.delete(task)
             self.db.commit()
+            
+            # 更新项目概要信息
+            update_project_summary(project_id, self.db)
             
             return {
                 "success": True,
@@ -1040,6 +1048,63 @@ class ProjectService:
             return {
                 "success": False,
                 "message": f"删除任务失败: {str(e)}",
+                "data": None
+            }
+    
+    def refresh_project_status(self, project_name: str) -> Dict:
+        """
+        刷新项目状态（重新计算项目的进度和时间信息）
+
+        Args:
+            project_name: 项目名称
+
+        Returns:
+            Dict: 操作结果
+        """
+        try:
+            # 验证参数
+            if not project_name:
+                return {
+                    "success": False,
+                    "message": "项目名称不能为空",
+                    "data": None
+                }
+            
+            # 查找项目
+            project = self.db.query(Project).filter(
+                Project.name == project_name
+            ).first()
+            
+            if not project:
+                # 项目不存在，返回相似项目列表
+                similar_projects = self.find_similar_projects(project_name)
+                return {
+                    "success": False,
+                    "message": f"项目 '{project_name}' 不存在",
+                    "data": {
+                        "suggestions": similar_projects,
+                        "field": "project_name",
+                        "original_value": project_name
+                    }
+                }
+            
+            # 更新项目概要信息
+            update_project_summary(project.id, self.db)
+            
+            # 重新获取项目信息
+            self.db.refresh(project)
+            
+            return {
+                "success": True,
+                "message": f"项目 '{project_name}' 状态已刷新",
+                "data": project.to_dict()
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            return {
+                "success": False,
+                "message": f"刷新项目状态失败: {str(e)}",
                 "data": None
             }
     
