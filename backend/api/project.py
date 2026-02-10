@@ -148,17 +148,48 @@ async def get_project_categories(db: Session = Depends(get_db)):
 
 
 def calculate_project_progress(project_id: int, db: Session) -> float:
-    """计算项目进度"""
+    """计算项目进度
+    
+    基于任务的实际进行天数和计划天数的比例计算项目进度
+    项目进度 = (所有任务已实际进行的总天数) / (计划需要的总天数) × 100%
+    """
+    from datetime import datetime
+    
     tasks = db.query(Task).filter(Task.project_id == project_id).all()
     
     if not tasks:
         return 0.0
     
-    total_progress = 0.0
+    # 计算计划总天数
+    total_planned_days = 0.0
     for task in tasks:
-        total_progress += task.progress
+        if task.planned_start_date and task.planned_end_date:
+            planned_days = (task.planned_end_date - task.planned_start_date).days
+            if planned_days > 0:
+                total_planned_days += planned_days
     
-    return total_progress / len(tasks)
+    # 计划总天数为0时，进度为0%
+    if total_planned_days == 0:
+        return 0.0
+    
+    # 计算实际进行总天数
+    total_actual_days = 0.0
+    for task in tasks:
+        # 已完成任务
+        if task.actual_end_date and task.actual_start_date:
+            actual_days = (task.actual_end_date - task.actual_start_date).days
+            if actual_days > 0:
+                total_actual_days += actual_days
+        # 进行中任务
+        elif task.actual_start_date:
+            actual_days = (datetime.now() - task.actual_start_date).days
+            if actual_days > 0:
+                total_actual_days += actual_days
+    
+    # 计算进度百分比
+    progress = (total_actual_days / total_planned_days) * 100.0
+    
+    return progress
 
 
 def calculate_project_dates(project_id: int, db: Session):

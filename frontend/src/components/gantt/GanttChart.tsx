@@ -659,14 +659,217 @@ const GanttChart: React.FC<GanttChartProps> = ({
           .attr('text-decoration', 'none');
       });
 
+    // 任务状态解析函数
+    const getStatusFromCustomClass = (customClass: string): string => {
+      const statusMap: Record<string, string> = {
+        'bar-active': 'active',
+        'bar-pending': 'pending',
+        'bar-completed': 'completed',
+        'bar-delayed': 'delayed',
+        'bar-cancelled': 'cancelled'
+      };
+      const status = statusMap[customClass] || 'unknown';
+      // 添加调试信息
+      console.log('Status parsing:', { customClass, status });
+      return status;
+    };
+
     // 项目进度
-    titleGroup.append('text')
+    const progressText = titleGroup.append('text')
       .attr('x', svgWidth - 20)
       .attr('y', 0)
       .attr('text-anchor', 'end')
       .attr('font-size', '12px')
       .attr('fill', '#666666')
-      .text(`进度: ${Math.round(project.progress)}%`);
+      .style('cursor', 'pointer')
+      .text(`进度: ${Math.round(project.progress)}%`)
+      .on('mouseover', function() {
+        try {
+          // 计算进度相关数据
+          const totalTasks = project.tasks.length;
+          
+          // 修正：使用 custom_class 解析任务状态，添加字段验证
+          const completedTasks = project.tasks.filter(task => 
+            getStatusFromCustomClass(task.custom_class || '') === 'completed'
+          ).length;
+          const activeTasks = project.tasks.filter(task => 
+            getStatusFromCustomClass(task.custom_class || '') === 'active'
+          ).length;
+          const pendingTasks = project.tasks.filter(task => 
+            getStatusFromCustomClass(task.custom_class || '') === 'pending'
+          ).length;
+          
+          // 计算计划总天数和实际已进行天数
+          let totalPlannedDays = 0;
+          let totalActualDays = 0;
+          const today = new Date();
+          
+          console.log('开始计算进度数据:', {
+            projectName: project.name,
+            projectProgress: project.progress,
+            totalTasks: project.tasks.length
+          });
+          
+          project.tasks.forEach((task, index) => {
+            // 修正：使用 start 和 end 字段计算计划天数
+            if (task.start && task.end) {
+              try {
+                const plannedStart = new Date(task.start);
+                const plannedEnd = new Date(task.end);
+                
+                // 验证日期有效性
+                if (!isNaN(plannedStart.getTime()) && !isNaN(plannedEnd.getTime())) {
+                  const plannedDays = (plannedEnd.getTime() - plannedStart.getTime()) / (1000 * 60 * 60 * 24);
+                  if (plannedDays > 0) {
+                    totalPlannedDays += plannedDays;
+                    console.log(`任务 ${index + 1} 计划天数:`, {
+                      taskName: task.name,
+                      start: task.start,
+                      end: task.end,
+                      plannedDays: plannedDays.toFixed(1)
+                    });
+                  }
+                }
+              } catch (error) {
+                console.warn('计划天数计算错误:', { task: task.name, error });
+              }
+            }
+            
+            // 修正：基于任务状态和时间计算实际已进行天数
+            if (task.start) {
+              try {
+                const actualStart = new Date(task.start);
+                
+                // 验证日期有效性
+                if (!isNaN(actualStart.getTime())) {
+                  const taskStatus = getStatusFromCustomClass(task.custom_class || '');
+                  
+                  if (taskStatus === 'completed') {
+                    // 已完成任务：使用整个任务周期
+                    if (task.end) {
+                      const actualEnd = new Date(task.end);
+                      if (!isNaN(actualEnd.getTime())) {
+                        const actualDays = (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24);
+                        if (actualDays > 0) {
+                          totalActualDays += actualDays;
+                          console.log(`任务 ${index + 1} 实际天数 (已完成):`, {
+                            taskName: task.name,
+                            status: taskStatus,
+                            actualDays: actualDays.toFixed(1)
+                          });
+                        }
+                      }
+                    }
+                  } else if (taskStatus === 'active' || taskStatus === 'delayed') {
+                    // 进行中或延迟任务：使用从开始到当前的时间
+                    const actualDays = (today.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24);
+                    if (actualDays > 0) {
+                      totalActualDays += actualDays;
+                      console.log(`任务 ${index + 1} 实际天数 (进行中):`, {
+                        taskName: task.name,
+                        status: taskStatus,
+                        actualDays: actualDays.toFixed(1)
+                      });
+                    }
+                  }
+                }
+              } catch (error) {
+                console.warn('实际天数计算错误:', { task: task.name, error });
+              }
+            }
+          });
+          
+          console.log('计算结果:', {
+            totalPlannedDays: totalPlannedDays.toFixed(1),
+            totalActualDays: totalActualDays.toFixed(1),
+            completedTasks,
+            activeTasks,
+            pendingTasks
+          });
+          
+          // 计算时间进度
+          let timeProgress = 0;
+          if (project.start_date && project.end_date) {
+            try {
+              const projectStart = new Date(project.start_date);
+              const projectEnd = new Date(project.end_date);
+              
+              // 验证日期有效性
+              if (!isNaN(projectStart.getTime()) && !isNaN(projectEnd.getTime())) {
+                const totalProjectDays = (projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24);
+                console.log('时间进度计算:', {
+                  projectStart: projectStart.toISOString(),
+                  projectEnd: projectEnd.toISOString(),
+                  today: today.toISOString(),
+                  totalProjectDays: totalProjectDays.toFixed(1),
+                  projectName: project.name
+                });
+                
+                if (totalProjectDays > 0.1) { // 避免非常小的时间范围导致计算异常
+                  const elapsedDays = (today.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24);
+                  console.log('时间进度计算详情:', {
+                    elapsedDays: elapsedDays.toFixed(1),
+                    totalProjectDays: totalProjectDays.toFixed(1),
+                    ratio: (elapsedDays / totalProjectDays).toFixed(2)
+                  });
+                  
+                  if (elapsedDays >= 0) {
+                    timeProgress = Math.min(100, Math.max(0, (elapsedDays / totalProjectDays) * 100));
+                    console.log('最终时间进度:', timeProgress.toFixed(1) + '%');
+                  }
+                } else {
+                  console.warn('项目时间范围过小:', { totalProjectDays });
+                }
+              } else {
+                console.warn('无效的项目日期:', {
+                  start: project.start_date,
+                  end: project.end_date,
+                  startValid: !isNaN(projectStart.getTime()),
+                  endValid: !isNaN(projectEnd.getTime())
+                });
+              }
+            } catch (error) {
+              console.warn('时间进度计算错误:', error);
+            }
+          } else {
+            console.warn('项目缺少日期信息:', {
+              hasStartDate: !!project.start_date,
+              hasEndDate: !!project.end_date,
+              projectName: project.name
+            });
+          }
+          
+          // 构建tooltip内容
+          const tooltipContent = [
+            `当前进度: ${Math.round(project.progress)}%`,
+            `计算公式: (实际已进行天数 / 计划总天数) × 100%`,
+            ``,
+            `分子 - 实际已进行天数: ${totalActualDays.toFixed(1)}天`,
+            `  已完成任务: ${completedTasks}个`,
+            `  进行中任务: ${activeTasks}个`,
+            `  未开始任务: ${pendingTasks}个`,
+            ``,
+            `分母 - 计划总天数: ${totalPlannedDays.toFixed(1)}天`,
+            `  总任务数: ${totalTasks}个`,
+            `  平均任务计划天数: ${totalTasks > 0 ? (totalPlannedDays / totalTasks).toFixed(1) : 0}天`,
+            ``,
+            `时间进度: ${timeProgress.toFixed(1)}%`,
+            `实际进度: ${Math.round(project.progress)}%`,
+            ``,
+            `进度状态: ${project.progress >= timeProgress ? '正常' : '滞后'}`
+          ];
+          
+          // 显示tooltip - 使用正确的y坐标（基于项目标题的实际位置）
+          showTooltip(svg, tooltipContent, svgWidth - 20, y + 24, '进度详情', svgWidth);
+        } catch (error) {
+          console.error('Tooltip计算错误:', error);
+          // 显示错误信息tooltip
+          showTooltip(svg, ['数据计算错误，请刷新页面重试'], svgWidth - 20, y + 24, '错误', svgWidth);
+        }
+      })
+      .on('mouseout', function() {
+        svg.selectAll('.gantt-tooltip').remove();
+      });
 
     // 渲染任务
     if (isExpanded) {

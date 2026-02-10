@@ -1,0 +1,39 @@
+{
+  "id": 1,
+  "name": "测试项目",
+  "progress": 33.3,
+  "start_date": "2026-01-31T12:01:49.528021",
+  "end_date": "2026-02-25T12:01:49.528021",
+  "tasks": [
+    {
+      "id": "task_1",
+      "name": "任务1",
+      "description": "测试任务1",
+      "start": "2026-01-31T12:01:49.528021",
+      "end": "2026-02-05T12:01:49.528021",
+      "custom_class": "bar-completed",
+      "progress": 100,
+      "order": 1
+    },
+    {
+      "id": "task_2",
+      "name": "任务2",
+      "description": "测试任务2",
+      "start": "2026-02-05T12:01:49.528021",
+      "end": "2026-02-15T12:01:49.528021",
+      "custom_class": "bar-active",
+      "progress": 50,
+      "order": 2
+    },
+    {
+      "id": "task_3",
+      "name": "任务3",
+      "description": "测试任务3",
+      "start": "2026-02-15T12:01:49.528021",
+      "end": "2026-02-25T12:01:49.528021",
+      "custom_class": "bar-pending",
+      "progress": 0,
+      "order": 3
+    }
+  ]
+}
