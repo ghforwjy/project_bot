@@ -1056,7 +1056,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('x', taskX)
       .attr('y', y - 16)
       .attr('width', taskWidth)
-      .attr('height', 20)
+      .attr('height', 32)
       .attr('rx', 4)
       .attr('fill', getTaskColor(task.custom_class, task.progress, categoryColor))
       .attr('stroke', adjustColorBrightness(getTaskColor(task.custom_class, task.progress, categoryColor), -30))
@@ -1257,7 +1257,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       if (dragState.isDragging) return;
       
       d3.select(this)
-        .attr('height', 22)
+        .attr('height', 34)
         .attr('y', y - 17);
       
       const fullStartDate = new Date(task.start).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -1279,7 +1279,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       if (dragState.isDragging) return;
       
       d3.select(this)
-        .attr('height', 20)
+        .attr('height', 32)
         .attr('y', y - 16);
       
       svg.selectAll('.gantt-tooltip').remove();
