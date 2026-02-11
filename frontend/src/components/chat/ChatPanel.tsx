@@ -11,9 +11,15 @@ import { parseMessage } from '../../utils/messageParser'
 
 const { TextArea } = Input
 
+interface VoiceButtonRef {
+  stopRecording: () => void
+  isRecording: boolean
+}
+
 const ChatPanel: React.FC = () => {
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const voiceButtonRef = useRef<VoiceButtonRef>(null)
   const [isCreatingChat, setIsCreatingChat] = useState(false)
   const { messages, isLoading, addMessage, setLoading, sessionId, setSessionId, loadHistory, thinkingSteps, setThinkingSteps, updateThinkingStep, clearThinkingSteps, createNewSession, clearMessages } = useChatStore()
 
@@ -58,6 +64,12 @@ const ChatPanel: React.FC = () => {
   // 发送消息
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return
+
+    // 检查是否正在录音，如果是，停止录音
+    if (voiceButtonRef.current && voiceButtonRef.current.isRecording) {
+      console.log('发送消息时检测到正在录音，自动停止录音')
+      voiceButtonRef.current.stopRecording()
+    }
 
     const userMessage = inputValue.trim()
     setInputValue('')
@@ -274,6 +286,7 @@ const ChatPanel: React.FC = () => {
               style={{ width: 40, height: 40 }}
             />
             <VoiceButton 
+              ref={voiceButtonRef}
               onVoiceResult={handleVoiceResult} 
               isDisabled={isLoading} 
             />

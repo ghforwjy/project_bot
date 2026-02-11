@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Button, message, Tooltip } from 'antd'
 import { AudioOutlined, StopOutlined, LoadingOutlined } from '@ant-design/icons'
 
@@ -7,7 +7,12 @@ interface VoiceButtonProps {
   isDisabled?: boolean
 }
 
-const VoiceButton: React.FC<VoiceButtonProps> = ({ onVoiceResult, isDisabled = false }) => {
+interface VoiceButtonRef {
+  stopRecording: () => void
+  isRecording: boolean
+}
+
+const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResult, isDisabled = false }, ref) => {
   const [isRecording, setIsRecording] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -20,6 +25,12 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({ onVoiceResult, isDisabled = f
   const audioBufferRef = useRef<Float32Array[]>([])
   const silenceCounterRef = useRef(0)
   const isSpeakingRef = useRef(false)
+  
+  // 通过 ref 暴露方法和状态
+  useImperativeHandle(ref, () => ({
+    stopRecording,
+    isRecording
+  }))
   
   // 配置参数
   const config = {
@@ -380,6 +391,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({ onVoiceResult, isDisabled = f
 
     </Tooltip>
   )
-}
+})
+
+VoiceButton.displayName = 'VoiceButton'
 
 export default VoiceButton
