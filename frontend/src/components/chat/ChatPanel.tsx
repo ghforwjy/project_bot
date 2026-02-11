@@ -20,6 +20,7 @@ const ChatPanel: React.FC = () => {
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const voiceButtonRef = useRef<VoiceButtonRef>(null)
+  const isVoiceResultRef = useRef(false)
   const [isCreatingChat, setIsCreatingChat] = useState(false)
   const { messages, isLoading, addMessage, setLoading, sessionId, setSessionId, loadHistory, thinkingSteps, setThinkingSteps, updateThinkingStep, clearThinkingSteps, createNewSession, clearMessages } = useChatStore()
 
@@ -58,7 +59,21 @@ const ChatPanel: React.FC = () => {
 
   // 处理语音识别结果
   const handleVoiceResult = (text: string) => {
+    // 检查文本是否为空
+    if (!text || !text.trim()) {
+      return
+    }
+    isVoiceResultRef.current = true
     setInputValue(text)
+  }
+
+  // 处理录音开始
+  const handleRecordingStart = () => {
+    // 保存当前输入框的内容到 VoiceButton
+    if (voiceButtonRef.current) {
+      voiceButtonRef.current.setExistingInput(inputValue)
+      console.log('录音开始，保存当前输入框内容:', inputValue)
+    }
   }
 
   // 发送消息
@@ -170,6 +185,22 @@ const ChatPanel: React.FC = () => {
     }
   }
 
+  // 处理输入框内容变化
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value
+    
+    // 如果正在录音，则停止录音（不依赖 isVoiceResultRef 标志位）
+    if (voiceButtonRef.current && voiceButtonRef.current.isRecording) {
+      console.log('检测到用户手工输入，自动停止语音输入')
+      voiceButtonRef.current.stopRecording()
+    }
+    
+    setInputValue(newValue)
+    
+    // 重置标志位，表示后续的输入都是用户手工输入
+    isVoiceResultRef.current = false
+  }
+
   // 创建新对话
   const handleNewChat = async () => {
     if (isCreatingChat) return
@@ -270,7 +301,7 @@ const ChatPanel: React.FC = () => {
         <div className="flex items-end gap-2">
           <TextArea
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="输入消息... (Enter发送, Shift+Enter换行)"
             autoSize={{ minRows: 2, maxRows: 6 }}
@@ -287,7 +318,8 @@ const ChatPanel: React.FC = () => {
             />
             <VoiceButton 
               ref={voiceButtonRef}
-              onVoiceResult={handleVoiceResult} 
+              onVoiceResult={handleVoiceResult}
+              onRecordingStart={handleRecordingStart}
               isDisabled={isLoading} 
             />
           </div>

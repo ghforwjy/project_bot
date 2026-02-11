@@ -112,6 +112,9 @@ class DoubaoStreamingVoiceIntegration:
         client_id = str(time.time())
         logger.info(f"New WebSocket connection: {client_id}")
         
+        # 记录上次发送的文本，避免重复发送
+        last_sent_text = ""
+        
         try:
             # 初始化豆包流式语音识别客户端
             async with AsrWsClient(self.url) as client:
@@ -184,12 +187,17 @@ class DoubaoStreamingVoiceIntegration:
                                     if 'result' in response.payload_msg:
                                         text = response.payload_msg['result'].get('text', '')
                                         if text:
-                                            # 发送识别结果给前端
-                                            await websocket.send_json({
-                                                "type": "recognition_result",
-                                                "text": text
-                                            })
-                                            logger.debug(f"Sent recognition result to frontend: {text}")
+                                            # 检查文本是否有变化
+                                            if text != last_sent_text:
+                                                # 发送识别结果给前端
+                                                await websocket.send_json({
+                                                    "type": "recognition_result",
+                                                    "text": text
+                                                })
+                                                logger.debug(f"Sent recognition result to frontend: {text}")
+                                                last_sent_text = text
+                                            else:
+                                                logger.debug(f"Text unchanged, skipping: {text}")
                                     elif 'error' in response.payload_msg:
                                         error = response.payload_msg['error']
                                         error_msg = f"Doubao recognition error: {error}"

@@ -292,6 +292,7 @@ async def send_message(
                            "  - 如果任务不存在，使用create_task intent\n"+
                            "  - 如果任务存在且用户要更新任务，使用update_task intent\n"+
                            "  - 如果任务存在且用户要删除任务，使用delete_task intent\n"+
+                           "  - 如果要更新项目分类，使用update_project intent或assign_category intent\n"+
                            "- 在content中说明操作结果\n"+
                            "- 设置requires_confirmation为false\n"+
                            "- 示例（创建任务）：\n"+
@@ -312,27 +313,6 @@ async def send_message(
                            "  \"requires_confirmation\": false\n"+
                            "}\n"+
                            "```\n"+
-                           "- 示例（创建多个任务）：\n"+
-                           "```json\n"+
-                           "{\n"+
-                           "  \"intent\": \"create_task\",\n"+
-                           "  \"data\": {\n"+
-                           "    \"project_name\": \"赢和系统部署优化\",\n"+
-                           "    \"tasks\": [\n"+
-                           "      {\n"+
-                           "        \"name\": \"优化方案制定及评审\",\n"+
-                           "        \"status\": \"pending\"\n"+
-                           "      },\n"+
-                           "      {\n"+
-                           "        \"name\": \"系统部署实施\",\n"+
-                           "        \"status\": \"pending\"\n"+
-                           "      }\n"+
-                           "    ]\n"+
-                           "  },\n"+
-                           "  \"content\": \"已为'赢和系统部署优化'项目创建了2个任务\",\n"+
-                           "  \"requires_confirmation\": false\n"+
-                           "}\n"+
-                           "```\n"+
                            "- 示例（更新任务）：\n"+
                            "```json\n"+
                            "{\n"+
@@ -350,24 +330,27 @@ async def send_message(
                            "  \"requires_confirmation\": false\n"+
                            "}\n"+
                            "```\n"+
-                           "- 示例（更新多个任务）：\n"+
+                           "- 示例（更新项目分类）：\n"+
                            "```json\n"+
                            "{\n"+
-                           "  \"intent\": \"update_task\",\n"+
+                           "  \"intent\": \"update_project\",\n"+
                            "  \"data\": {\n"+
                            "    \"project_name\": \"赢和系统部署优化\",\n"+
-                           "    \"tasks\": [\n"+
-                           "      {\n"+
-                           "        \"name\": \"优化方案制定及评审\",\n"+
-                           "        \"status\": \"active\"\n"+
-                           "      },\n"+
-                           "      {\n"+
-                           "        \"name\": \"系统部署实施\",\n"+
-                           "        \"status\": \"active\"\n"+
-                           "      }\n"+
-                           "    ]\n"+
+                           "    \"category\": \"风险化解\"\n"+
                            "  },\n"+
-                           "  \"content\": \"已将'赢和系统部署优化'项目中2个任务的状态设置为进行中\",\n"+
+                           "  \"content\": \"已将'赢和系统部署优化'项目的分类设置为'风险化解'\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（取消项目分类）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"update_project\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"category\": null\n"+
+                           "  },\n"+
+                           "  \"content\": \"已取消'赢和系统部署优化'项目的分类\",\n"+
                            "  \"requires_confirmation\": false\n"+
                            "}\n"+
                            "```\n"+
@@ -386,34 +369,31 @@ async def send_message(
                            "  \"content\": \"已删除'赢和系统部署优化'项目中的'优化方案制定及评审'任务\",\n"+
                            "  \"requires_confirmation\": false\n"+
                            "}\n"+
-                           "```\n"+
-                           "- 示例（删除多个任务）：\n"+
-                           "```json\n"+
-                           "{\n"+
-                           "  \"intent\": \"delete_task\",\n"+
-                           "  \"data\": {\n"+
-                           "    \"project_name\": \"赢和系统部署优化\",\n"+
-                           "    \"tasks\": [\n"+
-                           "      {\n"+
-                           "        \"name\": \"优化方案制定及评审\"\n"+
-                           "      },\n"+
-                           "      {\n"+
-                           "        \"name\": \"系统部署实施\"\n"+
-                           "      }\n"+
-                           "    ]\n"+
-                           "  },\n"+
-                           "  \"content\": \"已删除'赢和系统部署优化'项目中的2个任务\",\n"+
-                           "  \"requires_confirmation\": false\n"+
-                           "}\n"+
                            "```\n\n"+
                            "**重要规则：**\n"+
                            "- 任务操作必须使用tasks数组格式，不要使用task_name字段\n"+
                            "- tasks数组可以包含一个或多个任务对象\n"+
                            "- 每个任务对象必须包含name字段\n"+
                            "- 删除任务时使用delete_task intent，不要使用update_task intent\n"+
+                           "- **关键：项目分类更新必须使用update_project或assign_category intent，禁止使用update_task intent**\n"+
+                           "- **关键：当操作涉及项目分类时，绝对不能将项目名作为任务名使用**\n"+
                            "- 如果用户在当前消息中没有明确确认，就返回第一轮的确认提示\n"+
                            "- 只有收到用户确认后，才返回包含intent的JSON指令\n"+
                            "- **关键：在第一轮确认轮时，必须根据任务是否存在来决定是创建、更新还是删除**\n\n"+
+                           "### 任务对象支持的字段\n\n"+
+                           "任务对象支持以下字段：\n"+
+                           "- name: 任务名称（必填）\n"+
+                           "- description: 任务描述\n"+
+                           "- assignee: 负责人\n"+
+                           "- planned_start_date: 计划开始日期\n"+
+                           "- planned_end_date: 计划结束日期\n"+
+                           "- actual_start_date: 实际开始日期\n"+
+                           "- actual_end_date: 实际结束日期\n"+
+                           "- priority: 优先级（1=高，2=中，3=低）\n"+
+                           "- deliverable: 交付物\n"+
+                           "- status: 状态\n\n"+
+                           "**重要：所有日期字段必须使用带 _date 后缀的名称（如 actual_end_date，而不是 actual_end）**\n"+
+                           "**重要：要清除日期字段时，将该字段设置为 null**\n\n"+
                            "### 项目不存在时的处理\n\n"+
                            "当用户要求操作某个项目，但该项目不存在时：\n"+
                            "- 不要自动创建新项目\n"+
@@ -585,6 +565,32 @@ async def send_message(
                             data = instruction.get("data", {})
                             logger.debug(f"[api.chat] 指令数据: {data}")
                             
+                            # 验证并修正指令
+                            project_name = data.get("project_name")
+                            tasks = data.get("tasks", [])
+                            
+                            # 检查是否是错误的任务更新意图（任务名与项目名相同）
+                            if intent == "update_task" and project_name and tasks:
+                                for task in tasks:
+                                    task_name = task.get("name")
+                                    if task_name == project_name:
+                                        # 检测到任务名与项目名相同，可能是项目操作意图错误
+                                        logger.warning(f"[api.chat] 检测到任务名与项目名相同: {task_name} == {project_name}")
+                                        logger.warning(f"[api.chat] 自动将意图从 update_task 修正为 update_project")
+                                        
+                                        # 修正意图
+                                        intent = "update_project"
+                                        # 提取category字段（如果存在）
+                                        category = task.get("category")
+                                        if category is not None:
+                                            # 构建新的data结构
+                                            data = {
+                                                "project_name": project_name,
+                                                "category": category
+                                            }
+                                            logger.info(f"[api.chat] 修正后的数据: {data}")
+                                        break
+                            
                             # 项目操作
                             if intent == "create_project" and data.get("project_name"):
                                 logger.debug(f"处理create_project意图，项目名称: {data.get('project_name')}")
@@ -599,6 +605,24 @@ async def send_message(
                                 logger.info(f"创建项目结果: {result}")
                                 if result["success"]:
                                     ai_content += f"\n\n操作结果: {result['message']}"
+                                    
+                                    # 处理category字段（如果存在）
+                                    if data.get("category"):
+                                        logger.debug(f"处理category字段，大类名称: {data.get('category')}")
+                                        category_result = project_service.assign_category(data.get('project_name'), data.get('category'))
+                                        logger.info(f"为项目指定大类结果: {category_result}")
+                                        if category_result["success"]:
+                                            ai_content += f"\n\n{category_result['message']}"
+                                        else:
+                                            ai_content += f"\n\n指定大类失败: {category_result['message']}"
+                                            # 检查是否有建议列表
+                                            if category_result.get('data') and isinstance(category_result['data'], dict) and category_result['data'].get('suggestions'):
+                                                suggestions = category_result['data']['suggestions']
+                                                if suggestions:
+                                                    ai_content += f"\n\n您是否指的是以下大类？\n"
+                                                    for i, suggestion in enumerate(suggestions, 1):
+                                                        ai_content += f"{i}. {suggestion}\n"
+                                                    ai_content += "\n请确认是哪个大类，或者提供正确的大类名称。"
                                 else:
                                     ai_content += f"\n\n操作失败: {result['message']}"
                             
@@ -617,6 +641,42 @@ async def send_message(
                                     ai_content += f"\n\n操作结果: {result['message']}"
                                 else:
                                     ai_content += f"\n\n操作失败: {result['message']}"
+                                
+                                # 处理category字段（如果存在）
+                                if data.get("category"):
+                                    logger.debug(f"处理category字段，大类名称: {data.get('category')}")
+                                    category_result = project_service.assign_category(data.get("project_name"), data.get("category"))
+                                    logger.info(f"为项目指定大类结果: {category_result}")
+                                    if category_result["success"]:
+                                        ai_content += f"\n\n{category_result['message']}"
+                                    else:
+                                        ai_content += f"\n\n指定大类失败: {category_result['message']}"
+                                        # 检查是否有建议列表
+                                        if category_result.get('data') and isinstance(category_result['data'], dict) and category_result['data'].get('suggestions'):
+                                            suggestions = category_result['data']['suggestions']
+                                            field = category_result['data'].get('field', '')
+                                            original_value = category_result['data'].get('original_value', '')
+                                            
+                                            if field == 'project_name':
+                                                # 项目不存在，生成确认回复
+                                                ai_content += f"\n\n我没有找到名为'{original_value}'的项目。"
+                                                if suggestions:
+                                                    ai_content += f"\n您是否指的是以下项目？"
+                                                    for i, suggestion in enumerate(suggestions, 1):
+                                                        ai_content += f"\n{i}. {suggestion}"
+                                                    ai_content += f"\n\n请确认是哪个项目，或者提供正确的项目名称。"
+                                                else:
+                                                    ai_content += f"\n当前系统中没有项目，请先创建项目。"
+                                            elif field == 'category_name':
+                                                # 大类不存在，生成确认回复
+                                                ai_content += f"\n\n我没有找到名为'{original_value}'的项目大类。"
+                                                if suggestions:
+                                                    ai_content += f"\n您是否指的是以下大类？"
+                                                    for i, suggestion in enumerate(suggestions, 1):
+                                                        ai_content += f"\n{i}. {suggestion}"
+                                                    ai_content += f"\n\n请确认是哪个大类，或者提供正确的大类名称。"
+                                                else:
+                                                    ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
                             
                             elif intent == "refresh_project_status" and data.get("project_name"):
                                 logger.debug(f"处理refresh_project_status意图，项目名称: {data.get('project_name')}")

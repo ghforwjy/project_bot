@@ -1,108 +1,160 @@
 #!/usr/bin/env python3
 """
-测试后端流式语音识别功能
+测试豆包流式语音识别的返回格式
 """
 import asyncio
-import websockets
 import json
-import time
+import logging
+from typing import Dict, Any, AsyncGenerator
 
-async def test_voice_stream():
-    """测试语音流式识别"""
-    print("开始测试语音流式识别...")
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class MockDoubaoStreamingVoiceIntegration:
+    """
+    模拟豆包流式语音识别集成
+    用于测试不同的返回格式
+    """
     
-    # WebSocket服务器URL
-    url = "ws://localhost:8000/api/v1/voice/stream"
-    print(f"尝试连接到: {url}")
+    def __init__(self, return_type: str = "full"):
+        """
+        初始化模拟集成
+        
+        Args:
+            return_type: 返回类型，"full"表示返回完整句子，"incremental"表示返回增量
+        """
+        self.return_type = return_type
     
-    # 设置连接超时
-    timeout = 5.0
-    websocket = None
-    
-    try:
-        # 连接WebSocket服务器
-        print("正在建立WebSocket连接...")
+    async def handle_stream(self, websocket) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        模拟处理WebSocket流式连接
         
-        # 使用asyncio.wait_for设置连接超时
-        websocket = await asyncio.wait_for(
-            websockets.connect(url),
-            timeout=timeout
-        )
-        
-        print("WebSocket连接已建立")
-        
-        # 读取完整的WAV文件数据
-        with open("test_audio.wav", "rb") as f:
-            wav_data = f.read()
-        
-        print(f"WAV文件大小: {len(wav_data)} bytes")
-        
-        # 分块发送音频数据
-        chunk_size = 32000  # 每次发送约1秒的音频数据
-        for i in range(0, len(wav_data), chunk_size):
-            chunk = wav_data[i:i+chunk_size]
-            print(f"发送音频数据: {len(chunk)} bytes")
-            await websocket.send(chunk)
+        Args:
+            websocket: 模拟的WebSocket连接
             
-            # 等待服务器返回结果
-            try:
-                response = await asyncio.wait_for(websocket.recv(), timeout=2.0)
-                result = json.loads(response)
-                if result.get("type") == "recognition_result":
-                    print(f"识别结果: {result.get('text')}")
-                elif result.get("type") == "error":
-                    print(f"错误: {result.get('message')}")
-                    break
-            except asyncio.TimeoutError:
-                # 超时，继续发送数据
-                pass
-            
-            # 模拟实时录音，添加短暂延迟
-            time.sleep(0.2)
+        Yields:
+            识别结果
+        """
+        # 模拟豆包流式语音识别的返回
+        if self.return_type == "full":
+            # 模拟返回完整句子
+            responses = [
+                "这个",
+                "这个任务",
+                "这个任务的",
+                "这个任务的开始",
+                "这个任务的开始时间",
+                "这个任务的开始时间是",
+                "这个任务的开始时间是2月",
+                "这个任务的开始时间是2月6",
+                "这个任务的开始时间是2月6日",
+                "这个任务的开始时间是2月6日。"
+            ]
+        else:
+            # 模拟返回增量
+            responses = [
+                "这个",
+                "任务",
+                "的",
+                "开始",
+                "时间",
+                "是",
+                "2月",
+                "6",
+                "日",
+                "。"
+            ]
         
-        # 发送结束信号
-        print("发送结束信号")
-        await websocket.send(b"END")
-        
-        # 等待最终结果，设置超时
-        try:
-            # 只等待最多5秒的最终结果
-            async with asyncio.timeout(5.0):
-                while True:
-                    response = await websocket.recv()
-                    result = json.loads(response)
-                    if result.get("type") == "recognition_result":
-                        print(f"最终识别结果: {result.get('text')}")
-                    elif result.get("type") == "error":
-                        print(f"错误: {result.get('message')}")
-                        break
-        except asyncio.TimeoutError:
-            print("等待最终结果超时，结束测试")
-        except websockets.exceptions.ConnectionClosed:
-            print("WebSocket连接已关闭")
-            
-    except asyncio.TimeoutError:
-        print(f"连接WebSocket服务器超时（{timeout}秒）")
-    except Exception as e:
-        print(f"测试失败: {e}")
-    finally:
-        # 确保WebSocket连接被关闭
-        if websocket:
-            try:
-                await websocket.close()
-                print("WebSocket连接已关闭")
-            except:
-                pass
+        for i, response in enumerate(responses):
+            await asyncio.sleep(0.2)  # 模拟延迟
+            yield {
+                "type": "recognition_result",
+                "text": response
+            }
+
+
+async def test_voice_stream(return_type: str):
+    """
+    测试语音流处理
     
-    print("测试完成")
+    Args:
+        return_type: 返回类型，"full"表示返回完整句子，"incremental"表示返回增量
+    """
+    print(f"\n测试豆包流式语音识别的返回格式: {return_type}")
+    print("=" * 60)
+    
+    # 初始化模拟集成
+    doubao_streaming = MockDoubaoStreamingVoiceIntegration(return_type)
+    
+    # 测试方案1：直接追加到输入框
+    print("测试方案1：直接追加到输入框")
+    input_value = ""
+    async for response in doubao_streaming.handle_stream(None):
+        if response['type'] == "recognition_result":
+            text = response['text']
+            input_value += text
+            print(f"  识别结果: {text}")
+            print(f"  输入框内容: {input_value}")
+    print(f"  最终结果: {input_value}")
+    print()
+    
+    # 测试方案2：替换整个输入框内容
+    print("测试方案2：替换整个输入框内容")
+    input_value = ""
+    async for response in doubao_streaming.handle_stream(None):
+        if response['type'] == "recognition_result":
+            text = response['text']
+            input_value = text
+            print(f"  识别结果: {text}")
+            print(f"  输入框内容: {input_value}")
+    print(f"  最终结果: {input_value}")
+    print()
+    
+    # 测试方案3：增量处理（仅当返回完整句子时有效）
+    if return_type == "full":
+        print("测试方案3：增量处理（计算增量并追加）")
+        input_value = ""
+        last_voice_result = ""
+        async for response in doubao_streaming.handle_stream(None):
+            if response['type'] == "recognition_result":
+                text = response['text']
+                if last_voice_result:
+                    # 找到新增的部分
+                    incremental = ""
+                    for j in range(len(last_voice_result), len(text) + 1):
+                        if text.startswith(last_voice_result):
+                            incremental = text[len(last_voice_result):]
+                            break
+                    input_value += incremental
+                    print(f"  识别结果: {text}")
+                    print(f"  增量: {incremental}")
+                    print(f"  输入框内容: {input_value}")
+                else:
+                    input_value = text
+                    print(f"  识别结果: {text}")
+                    print(f"  输入框内容: {input_value}")
+                last_voice_result = text
+        print(f"  最终结果: {input_value}")
+    print()
+
 
 if __name__ == "__main__":
-    # 检查测试音频文件是否存在
-    import os
-    if not os.path.exists("test_audio.wav"):
-        print("错误: 测试音频文件 test_audio.wav 不存在")
-        print("请创建一个16kHz采样率、1通道、16位的WAV音频文件用于测试")
-        exit(1)
+    print("测试豆包流式语音识别的返回格式")
+    print("=" * 60)
     
-    # 运行测试
-    asyncio.run(test_voice_stream())
+    # 测试返回完整句子的情况
+    asyncio.run(test_voice_stream("full"))
+    
+    # 测试返回增量的情况
+    asyncio.run(test_voice_stream("incremental"))
+    
+    print("测试完成！")
+    print("=" * 60)
+    print("结论：")
+    print("1. 如果豆包返回的是完整句子，应该使用方案2或方案3")
+    print("2. 如果豆包返回的是增量，应该使用方案1")

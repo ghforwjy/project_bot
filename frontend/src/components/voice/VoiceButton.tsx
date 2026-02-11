@@ -4,15 +4,17 @@ import { AudioOutlined, StopOutlined, LoadingOutlined } from '@ant-design/icons'
 
 interface VoiceButtonProps {
   onVoiceResult: (text: string) => void
+  onRecordingStart?: () => void
   isDisabled?: boolean
 }
 
 interface VoiceButtonRef {
   stopRecording: () => void
   isRecording: boolean
+  setExistingInput: (text: string) => void
 }
 
-const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResult, isDisabled = false }, ref) => {
+const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResult, onRecordingStart, isDisabled = false }, ref) => {
   const [isRecording, setIsRecording] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,11 +27,16 @@ const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResul
   const audioBufferRef = useRef<Float32Array[]>([])
   const silenceCounterRef = useRef(0)
   const isSpeakingRef = useRef(false)
+  const lastSentTextRef = useRef('')
+  const existingInputRef = useRef('')
   
   // 通过 ref 暴露方法和状态
   useImperativeHandle(ref, () => ({
     stopRecording,
-    isRecording
+    isRecording,
+    setExistingInput: (text: string) => {
+      existingInputRef.current = text
+    }
   }))
   
   // 配置参数
@@ -149,7 +156,14 @@ const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResul
       try {
         const data = JSON.parse(event.data)
         if (data.type === 'recognition_result') {
-          onVoiceResult(data.text)
+          const text = data.text
+          // 检查文本是否为空或与上次相同
+          if (text && text.trim() && text !== lastSentTextRef.current) {
+            lastSentTextRef.current = text
+            // 如果有原有输入内容，则追加
+            const finalText = existingInputRef.current ? existingInputRef.current + text : text
+            onVoiceResult(finalText)
+          }
         } else if (data.type === 'error') {
           setError(data.message)
           message.error(`语音识别错误: ${data.message}`)
@@ -184,6 +198,9 @@ const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResul
       setIsConnecting(true)
       setError(null)
       
+      // 重置上次发送的文本
+      lastSentTextRef.current = ''
+      
       // 初始化WebSocket连接
       const ws = initWebSocket()
       websocketRef.current = ws
@@ -195,6 +212,12 @@ const VoiceButton = forwardRef<VoiceButtonRef, VoiceButtonProps>(({ onVoiceResul
           clearTimeout(timeout)
           console.log('WebSocket连接已建立')
           setIsConnecting(false)
+          
+          // 触发录音开始回调
+          if (onRecordingStart) {
+            onRecordingStart()
+          }
+          
           resolve(true)
         }
         ws.onerror = (error) => {
