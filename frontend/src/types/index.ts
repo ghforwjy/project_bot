@@ -64,6 +64,7 @@ export interface ContentBlock {
   type: ContentType
   content: string
   title?: string
+  requires_confirmation?: boolean
 }
 
 // 思考步骤
@@ -81,6 +82,7 @@ export interface ChatMessage {
   content: string
   analysis?: string
   content_blocks?: ContentBlock[]
+  requires_confirmation?: boolean
   timestamp: Date
 }
 
@@ -97,6 +99,7 @@ export interface ChatResponse {
     content_blocks?: ContentBlock[]
     progress_steps?: ThinkingStep[]
     timestamp: string
+    requires_confirmation?: boolean
   }
 }
 

@@ -122,6 +122,7 @@ const ChatPanel: React.FC = () => {
           content: result.data.content,
           analysis: result.data.analysis,
           content_blocks: result.data.content_blocks,
+          requires_confirmation: result.data.requires_confirmation,
           timestamp: new Date(result.data.timestamp)
         })
       } else if (result.code === 409 && result.data?.is_outdated) {
@@ -188,7 +189,7 @@ const ChatPanel: React.FC = () => {
     const blocks = parseMessage(msg)
     
     // 使用统一的消息内容渲染组件渲染消息内容
-    return <MessageContent blocks={blocks} />
+    return <MessageContent blocks={blocks} requires_confirmation={msg.requires_confirmation} />
   }
 
   return (

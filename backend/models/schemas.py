@@ -36,6 +36,7 @@ class ChatMessageResponse(BaseModel):
     content: str
     timestamp: datetime
     project_id: Optional[int] = None
+    requires_confirmation: bool = False
 
 
 # ============================================

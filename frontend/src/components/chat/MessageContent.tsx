@@ -8,9 +8,10 @@ import { useChatStore } from '../../store/chatStore'
 
 interface MessageContentProps {
   blocks: ContentBlock[]
+  requires_confirmation?: boolean
 }
 
-const MessageContent: React.FC<MessageContentProps> = ({ blocks }) => {
+const MessageContent: React.FC<MessageContentProps> = ({ blocks, requires_confirmation }) => {
   const [loading, setLoading] = useState(false)
   const { addMessage, isLoading: globalLoading, sessionId } = useChatStore()
 
@@ -129,23 +130,25 @@ const MessageContent: React.FC<MessageContentProps> = ({ blocks }) => {
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {block.content}
                 </ReactMarkdown>
-                <div className="mt-4 flex gap-2">
-                  <Button 
-                    type="primary" 
-                    onClick={handleConfirm}
-                    loading={loading}
-                    disabled={loading || globalLoading}
-                  >
-                    {loading ? <Spin size="small" /> : '确认'}
-                  </Button>
-                  <Button 
-                    onClick={handleCancel}
-                    loading={loading}
-                    disabled={loading || globalLoading}
-                  >
-                    取消
-                  </Button>
-                </div>
+                {(requires_confirmation || block.requires_confirmation) && (
+                  <div className="mt-4 flex gap-2">
+                    <Button 
+                      type="primary" 
+                      onClick={handleConfirm}
+                      loading={loading}
+                      disabled={loading || globalLoading}
+                    >
+                      {loading ? <Spin size="small" /> : '确认'}
+                    </Button>
+                    <Button 
+                      onClick={handleCancel}
+                      loading={loading}
+                      disabled={loading || globalLoading}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                )}
               </div>
             )
           

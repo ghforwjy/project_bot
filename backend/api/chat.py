@@ -91,7 +91,6 @@ def split_ai_content(ai_content: str) -> list:
         logger.error(f"解析AI内容失败: {str(e)}")
         return [{"analysis": "", "content": ai_content}]
 
-
 def parse_ai_instructions(ai_content: str) -> list:
     """
     从AI回复中解析JSON指令（支持多个）
@@ -149,7 +148,6 @@ def parse_ai_instructions(ai_content: str) -> list:
         logger.error(f"解析AI指令失败: {str(e)}")
         return [{"intent": None}]
 
-
 def extract_first_instruction(ai_content: str) -> Dict[str, Any]:
     """
     从AI回复中解析单个JSON指令（兼容旧版本）
@@ -164,7 +162,6 @@ def extract_first_instruction(ai_content: str) -> Dict[str, Any]:
     if instructions and instructions[0].get("intent"):
         return instructions[0]
     return {"intent": None}
-
 
 @router.get("/chat/history", response_model=ResponseModel)
 async def get_chat_history(
@@ -259,113 +256,169 @@ async def send_message(
                 Message(
                     role="system", 
                     content=f"你是一个项目管理助手，帮助用户管理项目、项目大类和任务。请用简洁友好的语言回答用户的问题。\n\n当前的年月日是{current_date}，请将此时间信息作为上下文参考。\n\n"+
-                           "## 需求分类\n\n"+
-                           "### 增删改查操作（需要JSON指令）\n"+
-                           "以下操作需要返回JSON指令并遵循确认流程：\n"+
-                           "- 创建项目、更新项目、刷新项目状态、删除项目\n"+
-                           "- 创建任务、更新任务、删除任务\n"+
-                           "- 创建项目大类、更新项目大类、删除项目大类\n"+
-                           "- 为项目指定大类\n\n"+
-                           "### 分析需求（不需要JSON指令）\n"+
-                           "以下操作不需要返回JSON指令，直接基于项目数据回答：\n"+
-                           "- 查询项目状态、任务状态、项目进度\n"+
-                           "- 统计项目完成情况、任务分配情况\n"+
-                           "- 分析项目数据、任务数据\n"+
-                           "- 回答关于项目的任何问题（只要不是明确的增删改查操作）\n\n"+
-                           "## 增删改查操作格式\n\n"+
-                           "### 项目操作\n"+
-                           "```json\n"+
-                           "{\n"+
-                           "  \"intent\": \"create_project|update_project|delete_project\",\n"+
-                           "  \"data\": {\n"+
-                           "    \"project_name\": \"项目名称\",\n"+
-                           "    \"description\": \"项目描述\",\n"+
-                           "    \"start_date\": \"2024-01-01\",\n"+
-                           "    \"end_date\": \"2024-01-31\",\n"+
-                           "    \"tasks\": [\n"+
-                           "      {\n"+
-                           "        \"name\": \"任务名称\",\n"+
-                           "        \"assignee\": \"负责人\",\n"+
-                           "        \"start_date\": \"2024-01-01\",\n"+
-                           "        \"end_date\": \"2024-01-15\",\n"+
-                           "        \"actual_start_date\": \"2024-01-01\",\n"+
-                           "        \"actual_end_date\": \"2024-01-15\",\n"+
-                           "        \"priority\": \"high|medium|low\"\n"+
-                           "      }\n"+
-                           "    ]\n"+
-                           "  }\n"+
-                           "}\n"+
-                           "```\n\n"+
-                           "### 项目大类操作\n"+
-                           "```json\n"+
-                           "{\n"+
-                           "  \"intent\": \"create_category|update_category|delete_category\",\n"+
-                           "  \"data\": {\n"+
-                           "    \"category_name\": \"项目大类名称\",\n"+
-                           "    \"description\": \"项目大类描述\"\n"+
-                           "  }\n"+
-                           "}\n"+
-                           "```\n\n"+
-                           "### 项目分类操作\n"+
-                           "```json\n"+
-                           "{\n"+
-                           "  \"intent\": \"assign_category\",\n"+
-                           "  \"data\": {\n"+
-                           "    \"project_name\": \"项目名称\",\n"+
-                           "    \"category_name\": \"项目大类名称\"\n"+
-                           "  }\n"+
-                           "}\n"+
-                           "```\n\n"+
-                           "### 任务操作\n"+
-                           "```json\n"+
-                           "{\n"+
-                           "  \"intent\": \"create_task|update_task\",\n"+
-                           "  \"data\": {\n"+
-                           "    \"project_name\": \"项目名称\",\n"+
-                           "    \"tasks\": [\n"+
-                           "      {\n"+
-                           "        \"name\": \"任务名称\",\n"+
-                           "        \"assignee\": \"负责人\",\n"+
-                           "        \"start_date\": \"2024-01-01\",\n"+
-                           "        \"end_date\": \"2024-01-15\",\n"+
-                           "        \"actual_start_date\": \"2024-01-01\",\n"+
-                           "        \"actual_end_date\": \"2024-01-15\",\n"+
-                           "        \"priority\": \"high|medium|low\"\n"+
-                           "      }\n"+
-                           "    ]\n"+
-                           "  }\n"+
-                           "}\n"+
-                           "```\n\n"+
                            "## 重要规则\n\n"+
-                           "### 项目不存在时的处理\n"+
+                           "### 回答格式要求（关键规则）\n\n"+
+                           "**你必须始终以JSON格式回答**，包含以下字段：\n"+
+                           "- content: 你的回答内容（自然语言）\n"+
+                           "- requires_confirmation: 是否需要用户确认（true或false）\n\n"+
+                           "### 增删改查操作确认流程\n\n"+
+                           "当用户请求执行创建、更新、删除操作时，你必须遵循以下两轮对话流程：\n\n"+
+                           "**第一轮（确认轮）：**\n"+
+                           "- 返回JSON格式的回答，包含content和requires_confirmation字段\n"+
+                           "- 在content中用自然语言说明将要执行的操作，询问用户是否确认执行\n"+
+                           "- 设置requires_confirmation为true\n"+
+                           "- **重要：如果要操作任务，必须先检查任务是否存在**\n"+
+                           "  - 如果任务不存在，应该说明将要创建任务\n"+
+                           "  - 如果任务存在且用户要更新任务，应该说明将要更新任务\n"+
+                           "  - 如果任务存在且用户要删除任务，应该说明将要删除任务\n"+
+                           "- 示例：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"content\": \"我将创建'信创工作大类'，然后将'信创工作项目'纳入其中。确认执行吗？\",\n"+
+                           "  \"requires_confirmation\": true\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（删除任务确认）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"content\": \"我将删除'赢和系统部署优化'项目中的'优化方案制定及评审'任务。确认执行吗？\",\n"+
+                           "  \"requires_confirmation\": true\n"+
+                           "}\n"+
+                           "```\n\n"+
+                           "**第二轮（执行轮）：**\n"+
+                           "- 只有当用户在上一轮消息中明确说\"确认\"、\"执行\"、\"好的\"等同意词后\n"+
+                           "- 才能返回包含intent的JSON指令\n"+
+                           "- **重要：根据第一轮的检查结果，使用正确的intent**\n"+
+                           "  - 如果任务不存在，使用create_task intent\n"+
+                           "  - 如果任务存在且用户要更新任务，使用update_task intent\n"+
+                           "  - 如果任务存在且用户要删除任务，使用delete_task intent\n"+
+                           "- 在content中说明操作结果\n"+
+                           "- 设置requires_confirmation为false\n"+
+                           "- 示例（创建任务）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"create_task\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"tasks\": [\n"+
+                           "      {\n"+
+                           "        \"name\": \"优化方案制定及评审\",\n"+
+                           "        \"planned_start_date\": \"2026年02月06日\",\n"+
+                           "        \"planned_end_date\": \"2026年02月27日\"\n"+
+                           "      }\n"+
+                           "    ]\n"+
+                           "  },\n"+
+                           "  \"content\": \"已为'赢和系统部署优化'项目创建了'优化方案制定及评审'任务\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（创建多个任务）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"create_task\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"tasks\": [\n"+
+                           "      {\n"+
+                           "        \"name\": \"优化方案制定及评审\",\n"+
+                           "        \"status\": \"pending\"\n"+
+                           "      },\n"+
+                           "      {\n"+
+                           "        \"name\": \"系统部署实施\",\n"+
+                           "        \"status\": \"pending\"\n"+
+                           "      }\n"+
+                           "    ]\n"+
+                           "  },\n"+
+                           "  \"content\": \"已为'赢和系统部署优化'项目创建了2个任务\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（更新任务）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"update_task\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"tasks\": [\n"+
+                           "      {\n"+
+                           "        \"name\": \"优化方案制定及评审\",\n"+
+                           "        \"status\": \"active\"\n"+
+                           "      }\n"+
+                           "    ]\n"+
+                           "  },\n"+
+                           "  \"content\": \"已将'赢和系统部署优化'项目中'优化方案制定及评审'任务的状态设置为进行中\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（更新多个任务）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"update_task\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"tasks\": [\n"+
+                           "      {\n"+
+                           "        \"name\": \"优化方案制定及评审\",\n"+
+                           "        \"status\": \"active\"\n"+
+                           "      },\n"+
+                           "      {\n"+
+                           "        \"name\": \"系统部署实施\",\n"+
+                           "        \"status\": \"active\"\n"+
+                           "      }\n"+
+                           "    ]\n"+
+                           "  },\n"+
+                           "  \"content\": \"已将'赢和系统部署优化'项目中2个任务的状态设置为进行中\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（删除任务）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"delete_task\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"tasks\": [\n"+
+                           "      {\n"+
+                           "        \"name\": \"优化方案制定及评审\"\n"+
+                           "      }\n"+
+                           "    ]\n"+
+                           "  },\n"+
+                           "  \"content\": \"已删除'赢和系统部署优化'项目中的'优化方案制定及评审'任务\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n"+
+                           "- 示例（删除多个任务）：\n"+
+                           "```json\n"+
+                           "{\n"+
+                           "  \"intent\": \"delete_task\",\n"+
+                           "  \"data\": {\n"+
+                           "    \"project_name\": \"赢和系统部署优化\",\n"+
+                           "    \"tasks\": [\n"+
+                           "      {\n"+
+                           "        \"name\": \"优化方案制定及评审\"\n"+
+                           "      },\n"+
+                           "      {\n"+
+                           "        \"name\": \"系统部署实施\"\n"+
+                           "      }\n"+
+                           "    ]\n"+
+                           "  },\n"+
+                           "  \"content\": \"已删除'赢和系统部署优化'项目中的2个任务\",\n"+
+                           "  \"requires_confirmation\": false\n"+
+                           "}\n"+
+                           "```\n\n"+
+                           "**重要规则：**\n"+
+                           "- 任务操作必须使用tasks数组格式，不要使用task_name字段\n"+
+                           "- tasks数组可以包含一个或多个任务对象\n"+
+                           "- 每个任务对象必须包含name字段\n"+
+                           "- 删除任务时使用delete_task intent，不要使用update_task intent\n"+
+                           "- 如果用户在当前消息中没有明确确认，就返回第一轮的确认提示\n"+
+                           "- 只有收到用户确认后，才返回包含intent的JSON指令\n"+
+                           "- **关键：在第一轮确认轮时，必须根据任务是否存在来决定是创建、更新还是删除**\n\n"+
+                           "### 项目不存在时的处理\n\n"+
                            "当用户要求操作某个项目，但该项目不存在时：\n"+
                            "- 不要自动创建新项目\n"+
                            "- 应该列出系统中相似的项目供用户选择\n"+
-                           "- 询问用户是否指的是这些相似项目\n\n"+
-                           "### 增删改查操作确认流程（关键规则）\n\n"+
-                           "当用户请求执行创建、更新、删除操作时，你必须遵循以下两轮对话流程：\n\n"+
-                           "**第一轮（确认轮）：**\n"+
-                           "- 不要返回任何JSON指令\n"+
-                           "- 只用自然语言说明将要执行的操作\n"+
-                           "- 询问用户是否确认执行\n"+
-                           "- 例如：\"我将创建'信创工作大类'，然后将'信创工作项目'纳入其中。确认执行吗？\"\n\n"+
-                           "**第二轮（执行轮）：**\n"+
-                           "- 只有当用户在上一轮消息中明确说\"确认\"、\"执行\"、\"好的\"等同意词后\n"+
-                           "- 才能返回JSON指令\n"+
-                           "- 返回JSON指令后，不要再返回确认提示\n\n"+
-                           "**重要：**\n"+
-                           "- 如果用户在当前消息中没有明确确认，就返回第一轮的确认提示\n"+
-                           "- 只有收到用户确认后，才返回JSON指令\n\n"+
-                           "### 分析需求处理规则（关键规则）\n\n"+
-                           "当用户询问项目相关问题（只要不是明确的增删改查操作）时：\n"+
-                           "- 直接基于项目数据回答用户的问题\n"+
-                           "- 不要返回任何JSON指令\n"+
-                           "- 不要要求用户确认\n"+
-                           "- 理解对话语境，正确回应用户的追问和质疑\n"+
-                           "- 如果用户质疑你的回答方式，应该理解并改进回答\n"+
-                           "- **重要**：直接回答用户的问题，不要绕弯子或说反话\n"+
-                           "- 例如：用户问\"哪些项目没有分配人员\"，应该直接回答\"没有未分配人员的项目\"，而不是说\"所有项目都有分配人员\"\n\n"+
-                           "请在自然语言中说明将要执行的操作，但不要在用户确认之前返回JSON指令。"
+                           "- 询问用户是否指的是这些相似项目\n\n"
                 )
             ]
             
@@ -460,6 +513,61 @@ async def send_message(
             ai_instructions = parse_ai_instructions(ai_content)
             logger.info(f"[api.chat] 从AI回复中解析的指令: {ai_instructions}")
             
+            # 解析requires_confirmation字段
+            requires_confirmation = False
+            
+            # 1. 尝试从解析出的指令中提取requires_confirmation字段
+            for instruction in ai_instructions:
+                if instruction.get("requires_confirmation") is not None:
+                    requires_confirmation = instruction["requires_confirmation"]
+                    logger.info(f"从JSON中解析requires_confirmation: {requires_confirmation}")
+                    break
+            
+            # 2. 如果没有找到，尝试直接从AI回复中解析JSON
+            if not requires_confirmation:
+                import re
+                import json
+                
+                # 尝试匹配所有```json代码块
+                json_matches = re.findall(r'```json\n(.*?)\n```', ai_content, re.DOTALL)
+                
+                for json_str in json_matches:
+                    try:
+                        data = json.loads(json_str)
+                        if data.get("requires_confirmation") is not None:
+                            requires_confirmation = data["requires_confirmation"]
+                            logger.info(f"从JSON代码块中解析requires_confirmation: {requires_confirmation}")
+                            break
+                    except json.JSONDecodeError as e:
+                        logger.error(f"解析JSON代码块失败: {str(e)}")
+                
+                # 如果没有代码块，尝试直接匹配JSON对象
+                if not requires_confirmation:
+                    # 查找所有JSON对象
+                    pattern = r'\{[^}]*\}'
+                    json_matches = re.findall(pattern, ai_content, re.DOTALL)
+                    
+                    for json_str in json_matches:
+                        try:
+                            data = json.loads(json_str)
+                            if data.get("requires_confirmation") is not None:
+                                requires_confirmation = data["requires_confirmation"]
+                                logger.info(f"从JSON对象中解析requires_confirmation: {requires_confirmation}")
+                                break
+                        except json.JSONDecodeError as e:
+                            logger.error(f"解析JSON对象失败: {str(e)}")
+            
+            # 3. 如果仍然没有找到，检查是否是确认轮的回答（基于关键词）
+            if not requires_confirmation:
+                confirmation_keywords = ["确认执行吗", "确认吗", "是否确认", "是否执行", "请确认"]
+                for keyword in confirmation_keywords:
+                    if keyword in ai_content:
+                        requires_confirmation = True
+                        logger.info("未找到确认标记，但检测到确认关键词，设置为需要确认")
+                        break
+                if not requires_confirmation:
+                    logger.info("未找到确认标记，默认为不需要确认")
+            
             # 执行操作（遍历执行所有有效的指令）
             from core.project_service import get_project_service
             
@@ -535,30 +643,59 @@ async def send_message(
                                 logger.debug(f"[api.chat] 处理create_task意图，项目名称: {data.get('project_name')}")
                                 tasks = data.get("tasks", [])
                                 logger.debug(f"[api.chat] 要创建的任务数量: {len(tasks)}")
+                                
+                                if len(tasks) == 0:
+                                    logger.warning(f"[api.chat] 没有任务需要创建，data中没有tasks数组")
+                                    ai_content += f"\n\n任务操作失败: 未提供任务信息"
+                                
+                                task_created_count = 0
+                                task_failed_count = 0
                                 for task in tasks:
                                     if task.get("name"):
                                         logger.debug(f"[api.chat] 创建任务: {task.get('name')}")
                                         result = project_service.create_task(data["project_name"], task)
                                         logger.info(f"[api.chat] 创建任务结果: {result}")
                                         if result["success"]:
+                                            task_created_count += 1
                                             ai_content += f"\n\n任务操作结果: {result['message']}"
                                         else:
+                                            task_failed_count += 1
                                             ai_content += f"\n\n任务操作失败: {result['message']}"
+                                
+                                # 汇总创建结果
+                                if task_created_count > 0 or task_failed_count > 0:
+                                    logger.info(f"[api.chat] 任务创建完成，成功: {task_created_count}，失败: {task_failed_count}")
+                                else:
+                                    logger.warning(f"[api.chat] 没有创建任何任务")
                             
                             elif intent == "update_task" and data.get("project_name"):
                                 logger.debug(f"[api.chat] 处理update_task意图，项目名称: {data.get('project_name')}")
                                 tasks = data.get("tasks", [])
                                 logger.debug(f"[api.chat] 要更新的任务数量: {len(tasks)}")
+                                
+                                if len(tasks) == 0:
+                                    logger.warning(f"[api.chat] 没有任务需要更新，data中没有tasks数组")
+                                    ai_content += f"\n\n任务操作失败: 未提供任务信息"
+                                
+                                task_updated_count = 0
+                                task_failed_count = 0
                                 for task in tasks:
                                     if task.get("name"):
                                         logger.debug(f"[api.chat] 更新任务: {task.get('name')}, 任务数据: {task}")
-                                        # 调用同步方法
                                         result = project_service.update_task(data["project_name"], task.get("name"), task)
                                         logger.info(f"[api.chat] 更新任务结果: {result}")
                                         if result["success"]:
+                                            task_updated_count += 1
                                             ai_content += f"\n\n任务操作结果: {result['message']}"
                                         else:
+                                            task_failed_count += 1
                                             ai_content += f"\n\n任务操作失败: {result['message']}"
+                                
+                                # 汇总更新结果
+                                if task_updated_count > 0 or task_failed_count > 0:
+                                    logger.info(f"[api.chat] 任务更新完成，成功: {task_updated_count}，失败: {task_failed_count}")
+                                else:
+                                    logger.warning(f"[api.chat] 没有更新任何任务")
                             
                             elif intent == "delete_project" and data.get("project_name"):
                                 result = project_service.delete_project(data["project_name"])
@@ -742,7 +879,8 @@ async def send_message(
             "content": main_content,
             "analysis": main_analysis,
             "content_blocks": [{"content": ai_content}],  # 保持与消息元数据格式一致
-            "timestamp": ai_message.timestamp.isoformat()
+            "timestamp": ai_message.timestamp.isoformat(),
+            "requires_confirmation": requires_confirmation
         }
     )
 

@@ -6,6 +6,7 @@ interface Message {
   content: string
   analysis?: string
   content_blocks?: ContentBlock[]
+  requires_confirmation?: boolean
   timestamp: Date
 }
 
