@@ -140,7 +140,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     // 使用本地选择的项目ID
     const effectiveProjectId = selectedProject;
     
-    if (effectiveProjectId !== null) {
+    if (effectiveProjectId !== null && effectiveProjectId !== "") {
       // 只显示选中的项目
       result = result.map((category: ProjectCategoryGantt) => ({
         ...category,
@@ -150,7 +150,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       );
     }
     
-    if (selectedCategory !== null) {
+    if (selectedCategory !== null && selectedCategory !== "") {
       result = result.filter((category: ProjectCategoryGantt) => category.id === selectedCategory);
     }
     
