@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
+import html2canvas from 'html2canvas';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Spin, Empty, Tooltip, Select, Input, Button, message } from 'antd';
-import { AppstoreOutlined, FolderOutlined, SearchOutlined, CloseCircleOutlined, UnorderedListOutlined, BarsOutlined } from '@ant-design/icons';
+import { Spin, Empty, Tooltip, Select, Input, Button, message, Dropdown, Menu } from 'antd';
+import { AppstoreOutlined, FolderOutlined, SearchOutlined, CloseCircleOutlined, UnorderedListOutlined, BarsOutlined, DownloadOutlined } from '@ant-design/icons';
 import { AllGanttData, GanttChartProps, GanttData, ProjectCategoryGantt, ProjectGantt, ExpandedStates } from './types';
 import './GanttChart.css';
 
@@ -1508,6 +1509,141 @@ const GanttChart: React.FC<GanttChartProps> = ({
     return statusMap[customClass] || '未知';
   };
 
+  // 导出甘特图为图片
+  const handleExport = async (format: 'png' | 'jpg' = 'png', quality: number = 0.9) => {
+    // 首先检查chartRef是否存在
+    if (!chartRef.current) {
+      message.error('图表容器不存在');
+      return;
+    }
+
+    // 尝试获取SVG元素
+    const svgElement = chartRef.current.querySelector('svg');
+    if (!svgElement) {
+      message.error('未找到甘特图元素');
+      return;
+    }
+
+    // 检查是否有数据
+    if (!ganttData?.project_categories || ganttData.project_categories.length === 0) {
+      message.error('甘特图无数据可导出');
+      return;
+    }
+
+    try {
+      const loadingMessage = message.loading('正在导出...', 0);
+
+      // 优化：在导出前暂时禁用按钮，避免重复点击
+      const exportButton = document.querySelector('.gantt-export-button');
+      if (exportButton) {
+        (exportButton as HTMLButtonElement).disabled = true;
+      }
+
+      // 方法1：尝试使用SVG直接转换为图片（备选方案）
+      try {
+        // 将SVG转换为data URL
+        const svgString = new XMLSerializer().serializeToString(svgElement);
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const svgUrl = URL.createObjectURL(svgBlob);
+
+        // 创建图片元素
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            // 创建canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width * 2; // 提高分辨率
+            canvas.height = img.height * 2;
+            
+            // 绘制图片到canvas
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              // 设置背景色
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              
+              // 绘制图片
+              ctx.scale(2, 2); // 提高分辨率
+              ctx.drawImage(img, 0, 0);
+
+              // 将canvas转换为图片并下载
+              const dataUrl = canvas.toDataURL(`image/${format}`, quality);
+              const link = document.createElement('a');
+              link.href = dataUrl;
+              link.download = `甘特图_${new Date().toISOString().slice(0, 10)}.${format}`;
+              link.click();
+
+              // 清理
+              URL.revokeObjectURL(svgUrl);
+              setTimeout(() => {
+                loadingMessage(); // 关闭加载提示
+                message.success('导出成功');
+                if (exportButton) {
+                  (exportButton as HTMLButtonElement).disabled = false;
+                }
+              }, 500);
+            } else {
+              throw new Error('无法获取canvas上下文');
+            }
+          } catch (error) {
+            console.error('图片绘制失败:', error);
+            throw error;
+          }
+        };
+
+        img.onerror = () => {
+          console.error('图片加载失败');
+          throw new Error('图片加载失败');
+        };
+
+        img.src = svgUrl;
+      } catch (error) {
+        console.error('SVG转换失败，尝试使用html2canvas:', error);
+        
+        // 方法2：回退到html2canvas
+        // 优化配置，使用不同的方法来处理元素
+        const canvas = await html2canvas(chartRef.current, {
+          backgroundColor: '#ffffff',
+          scale: 2, // 提高分辨率
+          useCORS: true,
+          logging: false,
+          removeContainer: true,
+          allowTaint: true,
+          foreignObjectRendering: true,
+          // 只捕获可见区域
+          x: 0,
+          y: 0,
+          width: chartRef.current.clientWidth,
+          height: chartRef.current.clientHeight
+        });
+
+        // 将canvas转换为图片并下载
+        const dataUrl = canvas.toDataURL(`image/${format}`, quality);
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `甘特图_${new Date().toISOString().slice(0, 10)}.${format}`;
+        link.click();
+
+        // 清理
+        setTimeout(() => {
+          loadingMessage(); // 关闭加载提示
+          message.success('导出成功');
+          if (exportButton) {
+            (exportButton as HTMLButtonElement).disabled = false;
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('导出失败:', error);
+      message.error('导出失败，请重试');
+      // 确保按钮重新启用
+      const exportButton = document.querySelector('.gantt-export-button');
+      if (exportButton) {
+        (exportButton as HTMLButtonElement).disabled = false;
+      }
+    }
+  };
+
   // 控制栏组件
 interface ControlBarProps {
   ganttData: AllGanttData | undefined;
@@ -1517,9 +1653,10 @@ interface ControlBarProps {
   setSelectedCategory: (value: number | null) => void;
   handleSearch: (value: string) => void;
   totalTaskCount: number;
+  onExport: (format?: 'png' | 'jpg') => void;
 }
 
-const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  setSelectedProject,  selectedCategory,  setSelectedCategory,  handleSearch,  totalTaskCount}) => {
+const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  setSelectedProject,  selectedCategory,  setSelectedCategory,  handleSearch,  totalTaskCount, onExport}) => {
   // 获取所有项目列表用于选择
   const allProjects = useMemo(() => {
     if (!ganttData?.project_categories) return [];
@@ -1548,7 +1685,7 @@ const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  
             optionFilterProp="children"
             allowClear
           >
-            <Option value={null}>
+            <Option value="">
               <UnorderedListOutlined className="gantt-option-icon" />
               <span>所有项目</span>
             </Option>
@@ -1572,7 +1709,7 @@ const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  
             allowClear
             placeholder="全部"
           >
-            <Option value={null}>
+            <Option value="">
               <span>全部</span>
             </Option>
             {ganttData?.project_categories.map(category => (
@@ -1601,6 +1738,40 @@ const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  
         <span className="gantt-status-text">
           找到 <strong>{totalTaskCount}</strong> 个任务
         </span>
+      </div>
+
+      <div className="gantt-control-bar-export">
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'png',
+                label: '导出为PNG',
+                onClick: () => {
+                  if (typeof onExport === 'function') {
+                    onExport('png');
+                  }
+                }
+              },
+              {
+                key: 'jpg',
+                label: '导出为JPG',
+                onClick: () => {
+                  if (typeof onExport === 'function') {
+                    onExport('jpg');
+                  }
+                }
+              }
+            ]
+          }}
+        >
+          <Button
+            icon={<DownloadOutlined />}
+            className="gantt-export-button"
+          >
+            导出
+          </Button>
+        </Dropdown>
       </div>
     </div>
   );
@@ -1635,16 +1806,19 @@ const MemoizedControlBar = React.memo(ControlBar);
     return (
       <div className={`gantt-container ${className}`} style={{ width }}>
         <MemoizedControlBar
-        ganttData={ganttData}
-        selectedProject={selectedProject}
-        setSelectedProject={setSelectedProject}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-        handleSearch={handleSearch}
-        totalTaskCount={totalTaskCount}
-      />
+          ganttData={ganttData}
+          selectedProject={selectedProject}
+          setSelectedProject={setSelectedProject}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          handleSearch={handleSearch}
+          totalTaskCount={totalTaskCount}
+          onExport={(format) => handleExport(format || 'png')}
+        />
         <div className="gantt-loading">
-          <Spin tip="加载甘特图数据..." />
+          <Spin>
+            <div style={{ padding: '20px' }}>加载甘特图数据...</div>
+          </Spin>
         </div>
         <Legend />
       </div>
@@ -1662,6 +1836,7 @@ const MemoizedControlBar = React.memo(ControlBar);
           setSelectedCategory={setSelectedCategory}
           handleSearch={handleSearch}
           totalTaskCount={totalTaskCount}
+          onExport={(format) => handleExport(format || 'png')}
         />
         <div className="gantt-empty">
           <Empty description="加载失败，请重试" />
@@ -1673,7 +1848,7 @@ const MemoizedControlBar = React.memo(ControlBar);
 
   return (
     <div className={`gantt-container ${className}`} style={{ width }}>
-      <ControlBar
+      <MemoizedControlBar
         ganttData={ganttData}
         selectedProject={selectedProject}
         setSelectedProject={setSelectedProject}
@@ -1681,6 +1856,7 @@ const MemoizedControlBar = React.memo(ControlBar);
         setSelectedCategory={setSelectedCategory}
         handleSearch={handleSearch}
         totalTaskCount={totalTaskCount}
+        onExport={(format) => handleExport(format || 'png')}
       />
       <div className="gantt-chart-wrapper" style={{ overflowX: 'auto', marginBottom: '20px' }}>
         <div 
