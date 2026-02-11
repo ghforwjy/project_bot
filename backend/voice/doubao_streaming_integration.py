@@ -174,6 +174,7 @@ class DoubaoStreamingVoiceIntegration:
                 
                 async def send_to_frontend():
                     """发送识别结果给前端"""
+                    nonlocal last_sent_text
                     while True:
                         try:
                             # 接收豆包返回的识别结果
