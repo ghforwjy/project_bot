@@ -292,10 +292,10 @@ class ProjectService:
             project_id=project_id,
             name=task_data.get("name"),
             assignee=task_data.get("assignee"),
-            planned_start_date=datetime.fromisoformat(task_data.get("start_date")) 
-                if task_data.get("start_date") else None,
-            planned_end_date=datetime.fromisoformat(task_data.get("end_date")) 
-                if task_data.get("end_date") else None,
+            planned_start_date=datetime.fromisoformat(task_data.get("planned_start_date")) 
+                if task_data.get("planned_start_date") else None,
+            planned_end_date=datetime.fromisoformat(task_data.get("planned_end_date")) 
+                if task_data.get("planned_end_date") else None,
             progress=0,
             deliverable="",
             status="pending",
@@ -403,12 +403,12 @@ class ProjectService:
             # 准备更新数据
             logger.debug("[core.project_service] 准备更新数据")
             update_data = {}
-            if "start_date" in task_data:
-                logger.debug(f"[core.project_service] 设置start_date: {task_data['start_date']}")
-                update_data["planned_start_date"] = task_data["start_date"]
-            if "end_date" in task_data:
-                logger.debug(f"[core.project_service] 设置end_date: {task_data['end_date']}")
-                update_data["planned_end_date"] = task_data["end_date"]
+            if "planned_start_date" in task_data:
+                logger.debug(f"[core.project_service] 设置planned_start_date: {task_data['planned_start_date']}")
+                update_data["planned_start_date"] = task_data["planned_start_date"]
+            if "planned_end_date" in task_data:
+                logger.debug(f"[core.project_service] 设置planned_end_date: {task_data['planned_end_date']}")
+                update_data["planned_end_date"] = task_data["planned_end_date"]
             if "actual_start_date" in task_data:
                 logger.debug(f"[core.project_service] 设置actual_start_date: {task_data['actual_start_date']}")
                 update_data["actual_start_date"] = task_data["actual_start_date"]

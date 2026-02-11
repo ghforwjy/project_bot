@@ -59,7 +59,11 @@ def update_task_in_db(task: Task, task_update: TaskUpdate, db: Session) -> Task:
                                     full_date_str = f'{current_year}-{int(month):02d}-{int(day):02d}'
                                     update_data[field] = datetime.strptime(full_date_str, '%Y-%m-%d')
                                 else:
-                                    raise ValueError(f"Invalid date format: {date_str}")
+                                    # 尝试解析中文格式日期（如"2026年02月06日"）
+                                    try:
+                                        update_data[field] = datetime.strptime(date_str, '%Y年%m月%d日')
+                                    except ValueError:
+                                        raise ValueError(f"Invalid date format: {date_str}")
                             except (ValueError, IndexError) as e:
                                 raise ValueError(f"无法解析日期: {date_str}")
                 else:
