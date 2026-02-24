@@ -81,6 +81,7 @@ class Project(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    assignee = Column(String, nullable=True)
     progress = Column(Float, default=0)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
@@ -103,6 +104,7 @@ class Project(Base):
         ),
         Index('idx_projects_status', 'status'),
         Index('idx_projects_dates', 'start_date', 'end_date'),
+        Index('idx_projects_assignee', 'assignee'),
     )
     
     def to_dict(self):
@@ -111,6 +113,7 @@ class Project(Base):
             'id': self.id,
             'name': self.name,
             'description': self.description,
+            'assignee': self.assignee,
             'progress': self.progress,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'end_date': self.end_date.isoformat() if self.end_date else None,

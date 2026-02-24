@@ -81,6 +81,7 @@ async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     db_project = Project(
         name=project.name,
         description=project.description,
+        assignee=project.assignee,
         start_date=datetime.fromisoformat(project.start_date) if project.start_date else None,
         end_date=datetime.fromisoformat(project.end_date) if project.end_date else None,
         status=project.status
@@ -188,6 +189,9 @@ def calculate_project_progress(project_id: int, db: Session) -> float:
     
     # 计算进度百分比
     progress = (total_actual_days / total_planned_days) * 100.0
+    
+    # 确保进度不超过100%
+    progress = min(progress, 100.0)
     
     return progress
 

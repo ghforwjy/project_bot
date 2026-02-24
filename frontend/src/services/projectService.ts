@@ -3,6 +3,7 @@ import api from './api'
 export interface ProjectCreate {
   name: string
   description?: string
+  assignee?: string
   start_date?: string
   end_date?: string
   status?: string
@@ -11,6 +12,7 @@ export interface ProjectCreate {
 export interface ProjectUpdate {
   name?: string
   description?: string
+  assignee?: string
   start_date?: string
   end_date?: string
   status?: string

@@ -47,6 +47,7 @@ class ProjectCreate(BaseModel):
     """创建项目请求"""
     name: str = Field(..., description="项目名称")
     description: Optional[str] = Field(None, description="项目描述")
+    assignee: Optional[str] = Field(None, description="项目负责人")
     start_date: Optional[str] = Field(None, description="开始日期")
     end_date: Optional[str] = Field(None, description="结束日期")
     status: str = Field("pending", description="项目状态")
@@ -56,6 +57,7 @@ class ProjectUpdate(BaseModel):
     """更新项目请求"""
     name: Optional[str] = None
     description: Optional[str] = None
+    assignee: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     status: Optional[str] = None
@@ -68,6 +70,7 @@ class ProjectResponse(BaseModel):
     id: int
     name: str
     description: Optional[str]
+    assignee: Optional[str]
     progress: float
     start_date: Optional[str]
     end_date: Optional[str]

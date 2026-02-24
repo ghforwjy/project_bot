@@ -26,6 +26,7 @@ interface ProjectDetail {
   id: number
   name: string
   description: string
+  assignee?: string
   progress: number
   status: string
   start_date: string
@@ -470,6 +471,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ visible, projec
               <Descriptions.Item label="项目名称">{project.name}</Descriptions.Item>
               <Descriptions.Item label="项目大类">{project.category_name || '-'}</Descriptions.Item>
               <Descriptions.Item label="描述">{project.description || '-'}</Descriptions.Item>
+              <Descriptions.Item label="负责人">{project.assignee || '-'}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={statusMap[project.status]?.color}>
                   {statusMap[project.status]?.text}

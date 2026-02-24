@@ -566,8 +566,12 @@ async def send_message(
                             logger.debug(f"[api.chat] 指令数据: {data}")
                             
                             # 验证并修正指令
-                            project_name = data.get("project_name")
-                            tasks = data.get("tasks", [])
+                            # 只有当data是字典时才获取project_name和tasks
+                            project_name = None
+                            tasks = []
+                            if isinstance(data, dict):
+                                project_name = data.get("project_name")
+                                tasks = data.get("tasks", [])
                             
                             # 检查是否是错误的任务更新意图（任务名与项目名相同）
                             if intent == "update_task" and project_name and tasks:
@@ -592,7 +596,7 @@ async def send_message(
                                         break
                             
                             # 项目操作
-                            if intent == "create_project" and data.get("project_name"):
+                            if intent == "create_project" and isinstance(data, dict) and data.get("project_name"):
                                 logger.debug(f"处理create_project意图，项目名称: {data.get('project_name')}")
                                 extracted_info = {
                                     "project_name": data.get("project_name"),
@@ -626,57 +630,139 @@ async def send_message(
                                 else:
                                     ai_content += f"\n\n操作失败: {result['message']}"
                             
-                            elif intent == "update_project" and data.get("project_name"):
-                                logger.debug(f"处理update_project意图，项目名称: {data.get('project_name')}")
-                                extracted_info = {
-                                    "project_name": data.get("project_name"),
-                                    "description": data.get("description"),
-                                    "start_date": data.get("start_date"),
-                                    "end_date": data.get("end_date"),
-                                    "status": data.get("status")
-                                }
-                                result = project_service.update_project(extracted_info)
-                                logger.info(f"更新项目结果: {result}")
-                                if result["success"]:
-                                    ai_content += f"\n\n操作结果: {result['message']}"
-                                else:
-                                    ai_content += f"\n\n操作失败: {result['message']}"
-                                
-                                # 处理category字段（如果存在）
-                                if data.get("category"):
-                                    logger.debug(f"处理category字段，大类名称: {data.get('category')}")
-                                    category_result = project_service.assign_category(data.get("project_name"), data.get("category"))
-                                    logger.info(f"为项目指定大类结果: {category_result}")
-                                    if category_result["success"]:
-                                        ai_content += f"\n\n{category_result['message']}"
-                                    else:
-                                        ai_content += f"\n\n指定大类失败: {category_result['message']}"
-                                        # 检查是否有建议列表
-                                        if category_result.get('data') and isinstance(category_result['data'], dict) and category_result['data'].get('suggestions'):
-                                            suggestions = category_result['data']['suggestions']
-                                            field = category_result['data'].get('field', '')
-                                            original_value = category_result['data'].get('original_value', '')
+                            elif intent == "update_project":
+                                # 处理data是列表的情况（多个项目更新）
+                                if isinstance(data, list):
+                                    for project_item in data:
+                                        if project_item.get("project_name"):
+                                            logger.debug(f"处理update_project意图，项目名称: {project_item.get('project_name')}")
+                                            extracted_info = {
+                                                "project_name": project_item.get("project_name"),
+                                                "description": project_item.get("description"),
+                                                "start_date": project_item.get("start_date"),
+                                                "end_date": project_item.get("end_date"),
+                                                "status": project_item.get("status"),
+                                                "assignee": project_item.get("assignee")
+                                            }
+                                            result = project_service.update_project(extracted_info)
+                                            logger.info(f"更新项目结果: {result}")
+                                            if result["success"]:
+                                                ai_content += f"\n\n操作结果: {result['message']}"
+                                            else:
+                                                ai_content += f"\n\n操作失败: {result['message']}"
                                             
-                                            if field == 'project_name':
-                                                # 项目不存在，生成确认回复
-                                                ai_content += f"\n\n我没有找到名为'{original_value}'的项目。"
-                                                if suggestions:
-                                                    ai_content += f"\n您是否指的是以下项目？"
-                                                    for i, suggestion in enumerate(suggestions, 1):
-                                                        ai_content += f"\n{i}. {suggestion}"
-                                                    ai_content += f"\n\n请确认是哪个项目，或者提供正确的项目名称。"
+                                            # 处理category字段（如果存在）
+                                            if project_item.get("category"):
+                                                logger.debug(f"处理category字段，大类名称: {project_item.get('category')}")
+                                                category_result = project_service.assign_category(project_item.get("project_name"), project_item.get("category"))
+                                                logger.info(f"为项目指定大类结果: {category_result}")
+                                                if category_result["success"]:
+                                                    ai_content += f"\n\n{category_result['message']}"
                                                 else:
-                                                    ai_content += f"\n当前系统中没有项目，请先创建项目。"
-                                            elif field == 'category_name':
-                                                # 大类不存在，生成确认回复
-                                                ai_content += f"\n\n我没有找到名为'{original_value}'的项目大类。"
-                                                if suggestions:
-                                                    ai_content += f"\n您是否指的是以下大类？"
-                                                    for i, suggestion in enumerate(suggestions, 1):
-                                                        ai_content += f"\n{i}. {suggestion}"
-                                                    ai_content += f"\n\n请确认是哪个大类，或者提供正确的大类名称。"
-                                                else:
-                                                    ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
+                                                    ai_content += f"\n\n指定大类失败: {category_result['message']}"
+                                                    # 检查是否有建议列表
+                                                    if category_result.get('data') and isinstance(category_result['data'], dict) and category_result['data'].get('suggestions'):
+                                                        suggestions = category_result['data']['suggestions']
+                                                        field = category_result['data'].get('field', '')
+                                                        original_value = category_result['data'].get('original_value', '')
+                                                        
+                                                        if field == 'project_name':
+                                                            # 项目不存在，生成确认回复
+                                                            ai_content += f"\n\n我没有找到名为'{original_value}'的项目。"
+                                                            if suggestions:
+                                                                ai_content += f"\n您是否指的是以下项目？"
+                                                                for i, suggestion in enumerate(suggestions, 1):
+                                                                    ai_content += f"\n{i}. {suggestion}"
+                                                                ai_content += f"\n\n请确认是哪个项目，或者提供正确的项目名称。"
+                                                            else:
+                                                                ai_content += f"\n当前系统中没有项目，请先创建项目。"
+                                                        elif field == 'category_name':
+                                                            # 大类不存在，生成确认回复
+                                                            ai_content += f"\n\n我没有找到名为'{original_value}'的项目大类。"
+                                                            if suggestions:
+                                                                ai_content += f"\n您是否指的是以下大类？"
+                                                                for i, suggestion in enumerate(suggestions, 1):
+                                                                    ai_content += f"\n{i}. {suggestion}"
+                                                                ai_content += f"\n\n请确认是哪个大类，或者提供正确的大类名称。"
+                                                            else:
+                                                                ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
+                                # 处理data是字典的情况
+                                elif isinstance(data, dict):
+                                    # 处理project_name和assignee都是列表的情况（多个项目批量更新）
+                                    if isinstance(data.get("project_name"), list) and isinstance(data.get("assignee"), list):
+                                        project_names = data.get("project_name", [])
+                                        assignees = data.get("assignee", [])
+                                        
+                                        # 配对处理，取最小长度
+                                        for project_name, assignee in zip(project_names, assignees):
+                                            logger.debug(f"处理update_project意图，项目名称: {project_name}")
+                                            extracted_info = {
+                                                "project_name": project_name,
+                                                "description": data.get("description"),
+                                                "start_date": data.get("start_date"),
+                                                "end_date": data.get("end_date"),
+                                                "status": data.get("status"),
+                                                "assignee": assignee
+                                            }
+                                            result = project_service.update_project(extracted_info)
+                                            logger.info(f"更新项目结果: {result}")
+                                            if result["success"]:
+                                                ai_content += f"\n\n操作结果: {result['message']}"
+                                            else:
+                                                ai_content += f"\n\n操作失败: {result['message']}"
+                                    # 处理单个项目更新的情况
+                                    elif data.get("project_name"):
+                                        logger.debug(f"处理update_project意图，项目名称: {data.get('project_name')}")
+                                        extracted_info = {
+                                            "project_name": data.get("project_name"),
+                                            "description": data.get("description"),
+                                            "start_date": data.get("start_date"),
+                                            "end_date": data.get("end_date"),
+                                            "status": data.get("status"),
+                                            "assignee": data.get("assignee")
+                                        }
+                                        result = project_service.update_project(extracted_info)
+                                        logger.info(f"更新项目结果: {result}")
+                                        if result["success"]:
+                                            ai_content += f"\n\n操作结果: {result['message']}"
+                                        else:
+                                            ai_content += f"\n\n操作失败: {result['message']}"
+                                        
+                                        # 处理category字段（如果存在）
+                                        if data.get("category"):
+                                            logger.debug(f"处理category字段，大类名称: {data.get('category')}")
+                                            category_result = project_service.assign_category(data.get("project_name"), data.get("category"))
+                                            logger.info(f"为项目指定大类结果: {category_result}")
+                                            if category_result["success"]:
+                                                ai_content += f"\n\n{category_result['message']}"
+                                            else:
+                                                ai_content += f"\n\n指定大类失败: {category_result['message']}"
+                                                # 检查是否有建议列表
+                                                if category_result.get('data') and isinstance(category_result['data'], dict) and category_result['data'].get('suggestions'):
+                                                    suggestions = category_result['data']['suggestions']
+                                                    field = category_result['data'].get('field', '')
+                                                    original_value = category_result['data'].get('original_value', '')
+                                                    
+                                                    if field == 'project_name':
+                                                        # 项目不存在，生成确认回复
+                                                        ai_content += f"\n\n我没有找到名为'{original_value}'的项目。"
+                                                        if suggestions:
+                                                            ai_content += f"\n您是否指的是以下项目？"
+                                                            for i, suggestion in enumerate(suggestions, 1):
+                                                                ai_content += f"\n{i}. {suggestion}"
+                                                            ai_content += f"\n\n请确认是哪个项目，或者提供正确的项目名称。"
+                                                        else:
+                                                            ai_content += f"\n当前系统中没有项目，请先创建项目。"
+                                                    elif field == 'category_name':
+                                                        # 大类不存在，生成确认回复
+                                                        ai_content += f"\n\n我没有找到名为'{original_value}'的项目大类。"
+                                                        if suggestions:
+                                                            ai_content += f"\n您是否指的是以下大类？"
+                                                            for i, suggestion in enumerate(suggestions, 1):
+                                                                ai_content += f"\n{i}. {suggestion}"
+                                                            ai_content += f"\n\n请确认是哪个大类，或者提供正确的大类名称。"
+                                                        else:
+                                                            ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
                             
                             elif intent == "refresh_project_status" and data.get("project_name"):
                                 logger.debug(f"处理refresh_project_status意图，项目名称: {data.get('project_name')}")

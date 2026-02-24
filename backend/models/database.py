@@ -97,4 +97,25 @@ def init_db():
     finally:
         db.close()
     
+    # 检查并添加 projects 表的 assignee 列
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        # 检查 projects 表是否有 assignee 列
+        result = db.execute(text("PRAGMA table_info(projects)"))
+        columns = [row[1] for row in result]
+        
+        if 'assignee' not in columns:
+            # 添加 assignee 列
+            db.execute(text("ALTER TABLE projects ADD COLUMN assignee TEXT"))
+            db.commit()
+            print("已成功添加 projects.assignee 列")
+        else:
+            print("projects.assignee 列已存在")
+    except Exception as e:
+        print(f"添加 assignee 列失败: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
+    
     print(f"数据库初始化完成: {DATABASE_PATH}")

@@ -13,6 +13,7 @@ interface Project {
   id: number
   name: string
   description: string
+  assignee?: string
   progress: number
   status: string
   start_date: string
@@ -312,6 +313,17 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({ onSelectProject, selectedPr
         }
         return (
           <span>{record.category_name || '-'}</span>
+        )
+      }
+    },
+    {
+      title: '负责人',
+      dataIndex: 'assignee',
+      key: 'assignee',
+      width: 120,
+      render: (text: string, record: Project) => {
+        return (
+          <span>{record.assignee || '-'}</span>
         )
       }
     },

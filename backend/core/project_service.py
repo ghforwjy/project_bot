@@ -52,6 +52,7 @@ class ProjectService:
             project = Project(
                 name=project_data.get("project_name"),
                 description=project_data.get("description"),
+                assignee=project_data.get("assignee"),
                 start_date=datetime.fromisoformat(project_data.get("start_date")) 
                     if project_data.get("start_date") else None,
                 end_date=datetime.fromisoformat(project_data.get("end_date")) 
@@ -111,6 +112,8 @@ class ProjectService:
             # 更新项目信息
             if project_data.get("description") is not None:
                 project.description = project_data.get("description")
+            if project_data.get("assignee") is not None:
+                project.assignee = project_data.get("assignee")
             if project_data.get("start_date"):
                 project.start_date = datetime.fromisoformat(project_data.get("start_date"))
             if project_data.get("end_date"):
