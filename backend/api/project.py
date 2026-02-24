@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from models.database import get_db
-from models.entities import Project, Task
+from models.entities import Project, Task, ProjectCategory
 from models.schemas import ProjectCreate, ProjectResponse, ProjectUpdate, ResponseModel
 
 router = APIRouter()
@@ -64,6 +64,12 @@ async def get_project(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
+    
+    # 更新项目概要信息（包括进度和状态）
+    update_project_summary(project_id, db)
+    
+    # 重新获取更新后的项目信息
+    project = db.query(Project).filter(Project.id == project_id).first()
     
     data = project.to_dict()
     # 按照 order 字段排序获取任务
@@ -151,47 +157,28 @@ async def get_project_categories(db: Session = Depends(get_db)):
 def calculate_project_progress(project_id: int, db: Session) -> float:
     """计算项目进度
     
-    基于任务的实际进行天数和计划天数的比例计算项目进度
-    项目进度 = (所有任务已实际进行的总天数) / (计划需要的总天数) × 100%
+    基于任务的进度值计算项目进度
+    项目进度 = 所有任务进度的平均值
     """
-    from datetime import datetime
+    from api.task import calculate_task_progress
     
     tasks = db.query(Task).filter(Task.project_id == project_id).all()
     
     if not tasks:
         return 0.0
     
-    # 计算计划总天数
-    total_planned_days = 0.0
+    # 计算所有任务的进度总和
+    total_progress = 0.0
     for task in tasks:
-        if task.planned_start_date and task.planned_end_date:
-            planned_days = (task.planned_end_date - task.planned_start_date).days
-            if planned_days > 0:
-                total_planned_days += planned_days
+        # 计算每个任务的进度
+        task_progress = calculate_task_progress(task)
+        total_progress += task_progress
     
-    # 计划总天数为0时，进度为0%
-    if total_planned_days == 0:
-        return 0.0
+    # 计算平均进度
+    progress = total_progress / len(tasks)
     
-    # 计算实际进行总天数
-    total_actual_days = 0.0
-    for task in tasks:
-        # 已完成任务
-        if task.actual_end_date and task.actual_start_date:
-            actual_days = (task.actual_end_date - task.actual_start_date).days
-            if actual_days > 0:
-                total_actual_days += actual_days
-        # 进行中任务
-        elif task.actual_start_date:
-            actual_days = (datetime.now() - task.actual_start_date).days
-            if actual_days > 0:
-                total_actual_days += actual_days
-    
-    # 计算进度百分比
-    progress = (total_actual_days / total_planned_days) * 100.0
-    
-    # 确保进度不超过100%
-    progress = min(progress, 100.0)
+    # 确保进度在0-100之间
+    progress = max(0.0, min(100.0, progress))
     
     return progress
 
@@ -225,9 +212,31 @@ def calculate_project_dates(project_id: int, db: Session):
 
 def update_project_summary(project_id: int, db: Session):
     """更新项目概要信息"""
+    from datetime import datetime
+    from api.task import calculate_task_progress
+    
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         return
+    
+    # 更新每个任务的进度和状态
+    tasks = db.query(Task).filter(Task.project_id == project_id).all()
+    for task in tasks:
+        # 更新任务进度
+        task_progress = calculate_task_progress(task)
+        task.progress = task_progress
+        
+        # 更新任务状态
+        if task.actual_end_date:
+            task.status = "completed"
+        elif task.actual_start_date:
+            # 检查任务是否逾期
+            if task.planned_end_date and datetime.now() > task.planned_end_date:
+                task.status = "delayed"
+            else:
+                task.status = "active"
+        else:
+            task.status = "pending"
     
     # 计算项目进度
     progress = calculate_project_progress(project_id, db)
@@ -239,6 +248,26 @@ def update_project_summary(project_id: int, db: Session):
         project.start_date = start_date
     if end_date:
         project.end_date = end_date
+    
+    # 自动维护项目状态
+    
+    # 检查是否所有任务都已完成
+    all_tasks_completed = all(task.actual_end_date is not None for task in tasks)
+    
+    # 检查是否逾期
+    is_overdue = False
+    if project.end_date:
+        is_overdue = datetime.now() > project.end_date
+    
+    # 更新项目状态
+    if all_tasks_completed:
+        project.status = "completed"
+    elif is_overdue:
+        project.status = "delayed"
+    elif any(task.actual_start_date is not None for task in tasks):
+        project.status = "active"
+    else:
+        project.status = "pending"
     
     db.commit()
     db.refresh(project)

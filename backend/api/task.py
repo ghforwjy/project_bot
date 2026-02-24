@@ -44,11 +44,12 @@ def calculate_task_progress(task: Task) -> float:
     """计算任务进度"""
     from datetime import datetime
     
-    # 根据实际开始和结束日期计算进度
+    # 任务已完成
     if task.actual_end_date:
         return 100.0
+    # 任务进行中
     elif task.actual_start_date:
-        # 计算已开始但未完成的任务进度
+        # 如果有计划结束日期，基于时间计算进度
         if task.planned_end_date:
             total_days = (task.planned_end_date - task.actual_start_date).days
             if total_days > 0:

@@ -570,7 +570,7 @@ async def send_message(
                             project_name = None
                             tasks = []
                             if isinstance(data, dict):
-                                project_name = data.get("project_name")
+                                project_name = data.get("project_name") or data.get("old_project_name")
                                 tasks = data.get("tasks", [])
                             
                             # 检查是否是错误的任务更新意图（任务名与项目名相同）
@@ -642,7 +642,10 @@ async def send_message(
                                                 "start_date": project_item.get("start_date"),
                                                 "end_date": project_item.get("end_date"),
                                                 "status": project_item.get("status"),
-                                                "assignee": project_item.get("assignee")
+                                                "assignee": project_item.get("assignee"),
+                                                "name": project_item.get("name"),
+                                                "new_project_name": project_item.get("new_project_name"),
+                                                "new_name": project_item.get("new_name")
                                             }
                                             result = project_service.update_project(extracted_info)
                                             logger.info(f"更新项目结果: {result}")
@@ -702,7 +705,10 @@ async def send_message(
                                                 "start_date": data.get("start_date"),
                                                 "end_date": data.get("end_date"),
                                                 "status": data.get("status"),
-                                                "assignee": assignee
+                                                "assignee": assignee,
+                                                "name": data.get("name"),
+                                                "new_project_name": data.get("new_project_name"),
+                                                "new_name": data.get("new_name")
                                             }
                                             result = project_service.update_project(extracted_info)
                                             logger.info(f"更新项目结果: {result}")
@@ -714,13 +720,16 @@ async def send_message(
                                     elif data.get("project_name"):
                                         logger.debug(f"处理update_project意图，项目名称: {data.get('project_name')}")
                                         extracted_info = {
-                                            "project_name": data.get("project_name"),
-                                            "description": data.get("description"),
-                                            "start_date": data.get("start_date"),
-                                            "end_date": data.get("end_date"),
-                                            "status": data.get("status"),
-                                            "assignee": data.get("assignee")
-                                        }
+                                                "project_name": data.get("project_name"),
+                                                "description": data.get("description"),
+                                                "start_date": data.get("start_date"),
+                                                "end_date": data.get("end_date"),
+                                                "status": data.get("status"),
+                                                "assignee": data.get("assignee"),
+                                                "name": data.get("name"),
+                                                "new_project_name": data.get("new_project_name"),
+                                                "new_name": data.get("new_name")
+                                            }
                                         result = project_service.update_project(extracted_info)
                                         logger.info(f"更新项目结果: {result}")
                                         if result["success"]:

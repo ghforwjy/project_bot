@@ -10,7 +10,32 @@ from sqlalchemy.orm import Session
 
 from models.entities import Project, Task, ProjectCategory
 from models.schemas import ProjectCreate, ProjectUpdate, TaskCreate, TaskUpdate
-from api.project import update_project_summary
+# 导入update_project_summary函数
+# 避免循环导入，直接实现简单的更新逻辑
+def update_project_summary(project_id, db):
+    """更新项目概要信息"""
+    from datetime import datetime
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project:
+        # 计算任务进度
+        tasks = db.query(Task).filter(Task.project_id == project_id).all()
+        if tasks:
+            total_progress = sum(task.progress for task in tasks)
+            project.progress = total_progress / len(tasks)
+        else:
+            project.progress = 0.0
+        
+        # 更新状态
+        if project.progress == 100:
+            project.status = "completed"
+        elif project.progress > 0:
+            project.status = "active"
+        else:
+            project.status = "pending"
+        
+        # 更新时间戳
+        project.updated_at = datetime.now()
+        db.commit()
 
 
 class ProjectService:
@@ -120,6 +145,12 @@ class ProjectService:
                 project.end_date = datetime.fromisoformat(project_data.get("end_date"))
             if project_data.get("status"):
                 project.status = project_data.get("status")
+            if project_data.get("name") is not None:
+                project.name = project_data.get("name")
+            if project_data.get("new_project_name") is not None:
+                project.name = project_data.get("new_project_name")
+            if project_data.get("new_name") is not None:
+                project.name = project_data.get("new_name")
             
             # 更新项目概要信息
             update_project_summary(project.id, self.db)

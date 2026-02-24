@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from models.entities import Base, Configuration
+from .entities import Base, Configuration
 
 # 数据库路径
 DATA_DIR = Path(__file__).parent.parent.parent / "data"

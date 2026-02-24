@@ -2,7 +2,7 @@
 
 一个基于前后端分离架构的项目管理助手机器人，用户通过自然语言对话与AI交互，系统自动从对话中提取项目信息并整理成结构化数据，支持甘特图可视化展示。
 
-## 功能特性
+## 项目概览
 
 - 🤖 **AI对话**：支持自然语言交互，智能理解用户意图
 - 📊 **项目信息提取**：自动从对话中提取项目、任务、时间、负责人等信息
@@ -11,26 +11,59 @@
 - 💾 **本地存储**：使用SQLite本地数据库，单机即可运行
 - 🎨 **现代化界面**：基于React + Ant Design的响应式界面
 
-## 技术架构
+## 文档导航
 
-### 前端
-- React 18 + TypeScript
-- Vite + Ant Design 5
-- Zustand (状态管理)
-- ECharts (甘特图)
+### 1. [项目概述](docs/overview/README.md)
+- 项目简介
+- 核心功能
+- 技术栈概览
+- 快速开始指南
 
-### 后端
-- Python 3.10+
-- FastAPI (Web框架)
-- SQLAlchemy (ORM)
-- SQLite (数据库)
+### 2. [系统架构](docs/architecture/README.md)
+- 整体架构设计
+- 模块划分与职责
+- 前后端通信协议
+- 部署架构
+
+### 3. [前端开发](docs/frontend/README.md)
+- 技术栈与架构
+- 组件设计
+- 状态管理
+- API服务
+- UI/UX设计
+
+### 4. [后端开发](docs/backend/README.md)
+- 技术栈与架构
+- API设计
+- 核心服务
+- LLM集成
+- 数据模型
+
+### 5. [API文档](docs/api/README.md)
+- 聊天接口
+- 项目接口
+- 任务接口
+- 甘特图接口
+- 配置接口
+
+### 6. [数据库设计](docs/database/README.md)
+- 数据库架构
+- 表结构设计
+- 实体关系
+- 数据迁移
+
+### 7. [LLM集成](docs/llm_integration/README.md)
+- 支持的LLM提供商
+- 集成架构
+- 信息提取机制
+- 配置与优化
 
 ## 快速开始
 
 ### 1. 克隆项目
 ```bash
 git clone <项目地址>
-cd project-assistant
+cd project-bot
 ```
 
 ### 2. 配置环境变量
@@ -63,110 +96,6 @@ npm run dev
 - 前端界面: http://localhost:5173
 - 后端API: http://localhost:8000
 - API文档: http://localhost:8000/docs
-
-## 界面截图
-
-### 主界面
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  项目管理助手                                    [设置]         │
-├───────────────┬───────────────────────────────┬─────────────────┤
-│               │                               │                 │
-│   聊天区域    │        项目信息/甘特图区域     │   详情侧边栏    │
-│               │                               │                 │
-│  ┌─────────┐  │  ┌─────────────────────────┐  │  ┌───────────┐  │
-│  │ AI消息  │  │  │                         │  │  │ 项目详情  │  │
-│  │         │  │  │    项目甘特图/任务列表   │  │  │ ───────── │  │
-│  └─────────┘  │  │                         │  │  │ 进度: 75% │  │
-│               │  │  [项目A][项目B][项目C]  │  │  │ 状态: ... │  │
-│  ┌─────────┐  │  │                         │  │  │           │  │
-│  │用户消息 │  │  │  ═══════════════════    │  │  │ 子任务    │  │
-│  │         │  │  │  │任务A│██████░░│      │  │  │ ───────── │  │
-│  └─────────┘  │  │  │任务B│████████│      │  │  │ □ 任务1   │  │
-│               │  │  ═══════════════════    │  │  │ □ 任务2   │  │
-│  ┌─────────┐  │  │                         │  │  └───────────┘  │
-│  │[输入..] │  │  └─────────────────────────┘  │                 │
-│  │[发送]   │  │                               │                 │
-│  └─────────┘  │                               │                 │
-└───────────────┴───────────────────────────────┴─────────────────┘
-```
-
-## API接口
-
-### 聊天接口
-- `POST /api/v1/chat/messages` - 发送消息
-- `GET /api/v1/chat/history` - 获取对话历史
-
-### 项目接口
-- `GET /api/v1/projects` - 获取项目列表
-- `POST /api/v1/projects` - 创建项目
-- `GET /api/v1/projects/{id}` - 获取项目详情
-- `PUT /api/v1/projects/{id}` - 更新项目
-- `DELETE /api/v1/projects/{id}` - 删除项目
-
-### 任务接口
-- `GET /api/v1/projects/{id}/tasks` - 获取任务列表
-- `POST /api/v1/projects/{id}/tasks` - 创建任务
-- `PUT /api/v1/projects/{id}/tasks/{task_id}` - 更新任务
-
-### 甘特图接口
-- `GET /api/v1/projects/{id}/gantt` - 获取甘特图数据
-
-### 配置接口
-- `GET /api/v1/config` - 获取配置
-- `PUT /api/v1/config` - 更新配置
-- `POST /api/v1/config/validate` - 验证API Key
-
-## 支持的LLM提供商
-
-| 提供商 | 模型 | 特点 |
-|--------|------|------|
-| OpenAI | gpt-4-turbo, gpt-3.5-turbo | 功能全面 |
-| Kimi | kimi-k2-turbo, moonshot-v1 | 中文优化 |
-| 豆包 | doubao-pro, doubao-lite | 性价比高 |
-
-## 项目目录结构
-
-```
-project-assistant/
-├── README.md
-├── .env                      # 环境变量
-├── requirements.txt          # Python依赖
-├── start.sh                  # 启动脚本
-│
-├── backend/                  # 后端代码
-│   ├── main.py               # FastAPI入口
-│   ├── api/                  # API路由
-│   ├── core/                 # 业务逻辑
-│   ├── llm/                  # LLM适配器
-│   └── models/               # 数据模型
-│
-├── frontend/                 # 前端代码
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── src/
-│       ├── components/       # 组件
-│       ├── store/            # 状态管理
-│       ├── services/         # API服务
-│       └── types/            # 类型定义
-│
-└── data/                     # 数据目录
-    └── app.db                # SQLite数据库
-```
-
-## 开发计划
-
-- [x] 基础聊天功能
-- [x] 项目信息提取
-- [x] 项目表格展示
-- [x] SQLite数据存储
-- [x] 甘特图展示
-- [x] 多LLM支持
-- [x] 配置界面
-- [ ] 项目信息提取准确性优化
-- [ ] 任务依赖关系
-- [ ] 文件上传支持
-- [ ] 导出功能
 
 ## 贡献指南
 
