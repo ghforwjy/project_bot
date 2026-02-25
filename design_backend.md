@@ -754,9 +754,47 @@ class ProgressService:
         """
         计算项目整体进度
         
-        算法：按任务权重加权平均
-        - 如果有预估工时，按工时权重
-        - 否则按任务数量平均
+        算法：基于任务完成度的平均值
+        1. 计算每个任务的进度
+        2. 取所有任务进度的平均值
+        3. 确保进度在0-100%之间
+        """
+        pass
+    
+    async def calculate_task_progress(self, task_id: str) -> float:
+        """
+        计算任务进度
+        
+        算法：
+        1. 如果任务有实际结束日期，返回100%
+        2. 如果任务有实际开始日期：
+           - 如果有计划结束日期，基于时间计算进度
+           - 否则返回0%
+        3. 否则返回0%
+        """
+        pass
+    
+    async def update_project_status(self, project_id: str) -> str:
+        """
+        更新项目状态
+        
+        状态逻辑：
+        1. 所有任务完成 → completed
+        2. 项目逾期 → delayed
+        3. 有任务开始 → active
+        4. 无任务开始 → pending
+        """
+        pass
+    
+    async def update_task_status(self, task_id: str) -> str:
+        """
+        更新任务状态
+        
+        状态逻辑：
+        1. 有实际结束日期 → completed
+        2. 有实际开始日期且逾期 → delayed
+        3. 有实际开始日期且未逾期 → active
+        4. 无实际开始日期 → pending
         """
         pass
     

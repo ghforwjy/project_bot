@@ -322,14 +322,45 @@ class ProjectService:
         Returns:
             Task: 创建的任务
         """
+        # 处理日期字段
+        def parse_date(date_str):
+            if not date_str:
+                return None
+            try:
+                # 尝试解析ISO格式（带T的格式）
+                return datetime.fromisoformat(date_str)
+            except ValueError:
+                try:
+                    # 尝试解析YYYY-MM-DD格式
+                    return datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError:
+                    # 处理只包含月日的格式（如"2-27"或"02-27"）
+                    try:
+                        # 拆分月日
+                        parts = date_str.split('-')
+                        if len(parts) == 2:
+                            month, day = parts
+                            current_year = datetime.now().year
+                            # 构建完整日期字符串
+                            full_date_str = f'{current_year}-{int(month):02d}-{int(day):02d}'
+                            return datetime.strptime(full_date_str, '%Y-%m-%d')
+                        else:
+                            # 尝试解析中文格式日期（如"2026年02月06日"）
+                            try:
+                                return datetime.strptime(date_str, '%Y年%m月%d日')
+                            except ValueError:
+                                raise ValueError(f"Invalid date format: {date_str}")
+                    except (ValueError, IndexError) as e:
+                        raise ValueError(f"无法解析日期: {date_str}")
+        
         task = Task(
             project_id=project_id,
             name=task_data.get("name"),
             assignee=task_data.get("assignee"),
-            planned_start_date=datetime.fromisoformat(task_data.get("planned_start_date")) 
-                if task_data.get("planned_start_date") else None,
-            planned_end_date=datetime.fromisoformat(task_data.get("planned_end_date")) 
-                if task_data.get("planned_end_date") else None,
+            planned_start_date=parse_date(task_data.get("planned_start_date")),
+            planned_end_date=parse_date(task_data.get("planned_end_date")),
+            actual_start_date=parse_date(task_data.get("actual_start_date")),
+            actual_end_date=parse_date(task_data.get("actual_end_date")),
             progress=0,
             deliverable="",
             status="pending",

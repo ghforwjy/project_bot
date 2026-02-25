@@ -852,13 +852,28 @@ async def send_message(
                                 else:
                                     logger.warning(f"[api.chat] 没有更新任何任务")
                             
-                            elif intent == "delete_project" and data.get("project_name"):
-                                result = project_service.delete_project(data["project_name"])
-                                logger.info(f"删除项目结果: {result}")
-                                if result["success"]:
-                                    ai_content += f"\n\n操作结果: {result['message']}"
-                                else:
-                                    ai_content += f"\n\n操作失败: {result['message']}"
+                            elif intent == "delete_project":
+                                # 处理单个项目删除（data.project_name）
+                                if data.get("project_name"):
+                                    result = project_service.delete_project(data["project_name"])
+                                    logger.info(f"删除项目结果: {result}")
+                                    if result["success"]:
+                                        ai_content += f"\n\n操作结果: {result['message']}"
+                                    else:
+                                        ai_content += f"\n\n操作失败: {result['message']}"
+                                # 处理多个项目删除（data.projects数组）
+                                elif data.get("projects"):
+                                    project_names = [p.get("name") for p in data.get("projects", []) if p.get("name")]
+                                    if project_names:
+                                        result = project_service.delete_project(project_names)
+                                        logger.info(f"删除项目结果: {result}")
+                                        if result["success"]:
+                                            ai_content += f"\n\n操作结果: {result['message']}"
+                                        else:
+                                            ai_content += f"\n\n操作失败: {result['message']}"
+                                    else:
+                                        logger.warning("删除项目失败: 未提供有效的项目名称")
+                                        ai_content += "\n\n操作失败: 未提供有效的项目名称"
                             
                             # 项目大类操作
                             elif intent == "create_category" and data.get("category_name"):
