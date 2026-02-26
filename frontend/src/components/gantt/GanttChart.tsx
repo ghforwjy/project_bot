@@ -81,6 +81,12 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const [categories, setCategories] = useState<ProjectCategoryGantt[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   
+  // 任务条和进度条尺寸配置
+  const TASK_BAR_HEIGHT = 32;           // 任务条总高度（与任务行32px一致）
+  const TASK_BAR_BORDER_WIDTH = 1;      // 边框宽度
+  const TASK_BAR_INNER_HEIGHT = TASK_BAR_HEIGHT - TASK_BAR_BORDER_WIDTH * 2;  // 内部高度（30）
+  const TASK_BAR_Y_OFFSET = TASK_BAR_HEIGHT / 2;  // Y轴偏移量（16）
+
   // 拖拽状态管理
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
@@ -328,8 +334,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       
       // 调整时间范围
       if (totalTimeRange > idealTimeRange) {
-        // 如果总时间范围大于理想时间范围，以今天为中心显示
-        const centerTime = today;
+        // 如果总时间范围大于理想时间范围，以任务时间范围的中心显示
+        const centerTime = (minTime + maxTime) / 2;
         const halfRange = Math.max(idealTimeRange / 2, totalTimeRange / 2);
         minTime = centerTime - halfRange;
         maxTime = centerTime + halfRange;
@@ -1048,19 +1054,20 @@ const GanttChart: React.FC<GanttChartProps> = ({
         svg.selectAll('.gantt-tooltip').remove();
       });
 
-    // 渲染任务条
+    // 渲染任务条背景（带边框）
+    // 任务条位置调整：与进度条对齐，去除多余的边框空间
     const taskBar = svg.append('rect')
       .attr('class', 'gantt-task-bar')
       .attr('data-task-id', task.id)
       .attr('data-task-order', task.order)
-      .attr('x', taskX)
-      .attr('y', y - 16)
-      .attr('width', taskWidth)
-      .attr('height', 20)
-      .attr('rx', 4)
+      .attr('x', taskX + TASK_BAR_BORDER_WIDTH)
+      .attr('y', y - TASK_BAR_Y_OFFSET)
+      .attr('width', taskWidth - TASK_BAR_BORDER_WIDTH * 2)
+      .attr('height', TASK_BAR_INNER_HEIGHT)
+      .attr('rx', 3)
       .attr('fill', getTaskColor(task.custom_class, task.progress, categoryColor))
       .attr('stroke', adjustColorBrightness(getTaskColor(task.custom_class, task.progress, categoryColor), -30))
-      .attr('stroke-width', 1)
+      .attr('stroke-width', TASK_BAR_BORDER_WIDTH)
       .style('cursor', 'grab')
       .style('transition', 'all 0.2s ease');
 
@@ -1074,8 +1081,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
           isDragging: true,
           draggedTask: task,
           draggedTaskId: taskId,
-          originalY: y - 16,
-          currentY: y - 16,
+          originalY: y - TASK_BAR_Y_OFFSET,
+          currentY: y - TASK_BAR_Y_OFFSET,
           taskHeight: 32
         });
         
@@ -1086,8 +1093,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       })
       .on('drag', function(event: any) {
         event.sourceEvent.stopPropagation();
-        // 使用event.y获取当前拖拽位置，减去16使鼠标在任务条中心
-        const newY = event.y - 16;
+        // 使用event.y获取当前拖拽位置，减去偏移量使鼠标在任务条中心
+        const newY = event.y - TASK_BAR_Y_OFFSET - TASK_BAR_BORDER_WIDTH;
         
         setDragState(prev => ({
           ...prev,
@@ -1223,11 +1230,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
             .catch(error => {
               console.error('更新任务顺序失败:', error);
               // 恢复原始位置
-              d3.select(this).attr('y', y - 16);
+              d3.select(this).attr('y', y - TASK_BAR_Y_OFFSET - TASK_BAR_BORDER_WIDTH);
             });
           } else {
             // 恢复原始位置
-            d3.select(this).attr('y', y - 16);
+            d3.select(this).attr('y', y - TASK_BAR_Y_OFFSET - TASK_BAR_BORDER_WIDTH);
           }
         } else {
           console.log('未满足更新条件:', {
@@ -1237,7 +1244,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
             projectId
           });
           // 恢复原始位置
-          d3.select(this).attr('y', y - 16);
+          d3.select(this).attr('y', y - TASK_BAR_Y_OFFSET - TASK_BAR_BORDER_WIDTH);
         }
         
         setDragState({
@@ -1257,8 +1264,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       if (dragState.isDragging) return;
       
       d3.select(this)
-        .attr('height', 22)
-        .attr('y', y - 17);
+        .attr('height', 34)
+        .attr('y', y - TASK_BAR_Y_OFFSET - 1);
       
       const fullStartDate = new Date(task.start).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
       const fullEndDate = new Date(task.end).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -1279,8 +1286,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       if (dragState.isDragging) return;
       
       d3.select(this)
-        .attr('height', 20)
-        .attr('y', y - 16);
+        .attr('height', TASK_BAR_INNER_HEIGHT)
+        .attr('y', y - TASK_BAR_Y_OFFSET);
       
       svg.selectAll('.gantt-tooltip').remove();
     })
@@ -1290,17 +1297,43 @@ const GanttChart: React.FC<GanttChartProps> = ({
       onTaskClick?.(task);
     });
 
-    // 渲染任务进度
-    if (task.progress > 0) {
-      const progressWidth = Math.max(0, Math.min(taskWidth, (taskWidth * task.progress) / 100));
+    // 渲染任务进度 - 基于时间进度（到今天为止）
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const taskStart = new Date(task.start);
+    const taskEnd = new Date(task.end);
+    
+    // 计算时间进度：今天相对于任务开始和结束的位置
+    let timeProgressWidth = 0;
+    if (today >= taskEnd) {
+      // 今天已过任务结束时间，显示完整进度条
+      timeProgressWidth = taskWidth;
+    } else if (today > taskStart) {
+      // 今天在任务时间范围内，按比例计算
+      const totalDuration = taskEnd.getTime() - taskStart.getTime();
+      const elapsedDuration = today.getTime() - taskStart.getTime();
+      const timeProgressRatio = elapsedDuration / totalDuration;
+      timeProgressWidth = Math.max(0, Math.min(taskWidth, taskWidth * timeProgressRatio));
+    }
+    // 如果今天 < 任务开始时间，timeProgressWidth 保持为 0
+    
+    if (timeProgressWidth > 0) {
+      // 进度条：填充在任务条边框内部
+      // 由于任务条有 1px 边框，进度条需要向内偏移 1px
+      const progressX = taskX + TASK_BAR_BORDER_WIDTH;
+      const progressY = y - TASK_BAR_Y_OFFSET;
+      const progressHeight = TASK_BAR_INNER_HEIGHT;
+      // 宽度不能超过任务条内部区域
+      const maxProgressWidth = Math.max(0, taskWidth - TASK_BAR_BORDER_WIDTH * 2);
+      const progressWidth = Math.max(0, Math.min(timeProgressWidth - TASK_BAR_BORDER_WIDTH, maxProgressWidth));
       
       svg.append('rect')
         .attr('class', 'gantt-task-progress')
-        .attr('x', taskX)
-        .attr('y', y - 16)
+        .attr('x', progressX)
+        .attr('y', progressY)
         .attr('width', progressWidth)
-        .attr('height', 32)
-        .attr('rx', 4)
+        .attr('height', progressHeight)
+        .attr('rx', 3)
         .attr('fill', getProgressColor(task.custom_class, task.progress, categoryColor))
         .style('pointer-events', 'none');
     }

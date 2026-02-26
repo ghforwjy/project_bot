@@ -2,6 +2,7 @@
 数据库连接和初始化
 """
 import os
+import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -9,8 +10,21 @@ from sqlalchemy.orm import sessionmaker
 
 from .entities import Base, Configuration
 
-# 数据库路径
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+# 导入路径工具函数
+try:
+    from utils.path_utils import get_executable_dir
+except ImportError:
+    # 如果导入失败，使用备用方案
+    def get_executable_dir():
+        if getattr(sys, 'frozen', False):
+            if "__compiled__" in globals():
+                return Path(sys.argv[0]).resolve().parent
+            return Path(sys.executable).parent
+        return Path(__file__).parent.parent.parent.resolve()
+
+# 数据库路径 - 打包后使用 exe 同级目录的 data 文件夹
+BASE_DIR = get_executable_dir()
+DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 DATABASE_PATH = DATA_DIR / "app.db"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"

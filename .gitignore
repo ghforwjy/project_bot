@@ -25,6 +25,11 @@ env/
 dist/
 build/
 
+# 发布目录（保留，用于分发）
+# release/ 目录不被忽略，可以被 git 跟踪
+# 但 release_standalone/ 包含大文件，需要忽略
+release_standalone/
+
 # 日志文件
 *.log
 logs/
