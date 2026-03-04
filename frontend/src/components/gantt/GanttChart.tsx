@@ -1054,6 +1054,26 @@ const GanttChart: React.FC<GanttChartProps> = ({
         svg.selectAll('.gantt-tooltip').remove();
       });
 
+    // 判断任务是否有时间信息
+    const hasTime = task.has_time !== false;
+    
+    // 只有有时间的任务才渲染任务条和进度条
+    if (hasTime) {
+      renderTaskBar(svg, task, categoryColor, xScale, y, taskX, taskWidth, svgWidth);
+    }
+  };
+
+  // 渲染任务条（独立函数，只处理有时间的任务）
+  const renderTaskBar = (
+    svg: any,
+    task: any,
+    categoryColor: string,
+    xScale: any,
+    y: number,
+    taskX: number,
+    taskWidth: number,
+    svgWidth: number
+  ) => {
     // 渲染任务条背景（带边框）
     // 任务条位置调整：与进度条对齐，去除多余的边框空间
     const taskBar = svg.append('rect')

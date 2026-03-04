@@ -150,6 +150,7 @@ class GanttTask(BaseModel):
     endTimeType: Optional[str] = None  # 结束时间类型：actual 或 planned
     project_id: Optional[int] = None  # 项目ID，用于任务点击时定位项目
     order: Optional[int] = 0  # 任务顺序
+    has_time: bool = True  # 是否有时间信息，用于前端判断是否显示任务条
 
 
 class GanttData(BaseModel):

@@ -54,22 +54,32 @@ async def get_gantt_data(project_id: int, db: Session = Depends(get_db)):
             if task.actual_start_date:
                 start_time_type = "actual"
         
-        if start_date and end_date:
-            gantt_task = GanttTask(
-                id=f"task_{task.id}",
-                name=task.name,
-                description=task.description,
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                progress=int(task.progress),
-                assignee=task.assignee,
-                custom_class=get_task_css_class(task.status),
-                startTimeType=start_time_type,
-                endTimeType=end_time_type,
-                project_id=task.project_id,
-                order=task.order or 0
-            )
-            gantt_tasks.append(gantt_task)
+        # 判断任务是否有时间信息
+        has_time = start_date is not None and end_date is not None
+        
+        # 对于无时间的任务，使用默认时间（今天）
+        if not has_time:
+            from datetime import datetime
+            today = datetime.now()
+            start_date = today
+            end_date = today
+        
+        gantt_task = GanttTask(
+            id=f"task_{task.id}",
+            name=task.name,
+            description=task.description,
+            start=start_date.strftime("%Y-%m-%d"),
+            end=end_date.strftime("%Y-%m-%d"),
+            progress=int(task.progress),
+            assignee=task.assignee,
+            custom_class=get_task_css_class(task.status),
+            startTimeType=start_time_type,
+            endTimeType=end_time_type,
+            project_id=task.project_id,
+            order=task.order or 0,
+            has_time=has_time
+        )
+        gantt_tasks.append(gantt_task)
     
     # 计算项目时间范围
     start_date = project.start_date
@@ -216,22 +226,32 @@ def build_project_gantt(project: Project, db: Session) -> ProjectGantt:
             if task.actual_start_date:
                 start_time_type = "actual"
         
-        if start_date and end_date:
-            gantt_task = GanttTask(
-                id=f"task_{task.id}",
-                name=task.name,
-                description=task.description,
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                progress=int(task.progress),
-                assignee=task.assignee or "",
-                custom_class=get_task_css_class(task.status),
-                startTimeType=start_time_type,
-                endTimeType=end_time_type,
-                project_id=project.id,
-                order=task.order or 0
-            )
-            gantt_tasks.append(gantt_task)
+        # 判断任务是否有时间信息
+        has_time = start_date is not None and end_date is not None
+        
+        # 对于无时间的任务，使用默认时间（今天）
+        if not has_time:
+            from datetime import datetime
+            today = datetime.now()
+            start_date = today
+            end_date = today
+        
+        gantt_task = GanttTask(
+            id=f"task_{task.id}",
+            name=task.name,
+            description=task.description,
+            start=start_date.strftime("%Y-%m-%d"),
+            end=end_date.strftime("%Y-%m-%d"),
+            progress=int(task.progress),
+            assignee=task.assignee or "",
+            custom_class=get_task_css_class(task.status),
+            startTimeType=start_time_type,
+            endTimeType=end_time_type,
+            project_id=project.id,
+            order=task.order or 0,
+            has_time=has_time
+        )
+        gantt_tasks.append(gantt_task)
     
     # 计算项目时间范围
     start_date = project.start_date
