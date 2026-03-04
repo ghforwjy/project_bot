@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import * as d3 from 'd3';
 import html2canvas from 'html2canvas';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Spin, Empty, Tooltip, Select, Input, Button, message, Dropdown, Menu } from 'antd';
+import { Spin, Empty, Tooltip, Select, Input, Button, message, Dropdown, Menu, Switch } from 'antd';
 import { AppstoreOutlined, FolderOutlined, SearchOutlined, CloseCircleOutlined, UnorderedListOutlined, BarsOutlined, DownloadOutlined } from '@ant-design/icons';
 import { AllGanttData, GanttChartProps, GanttData, ProjectCategoryGantt, ProjectGantt, ExpandedStates } from './types';
 import './GanttChart.css';
@@ -80,6 +80,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const [selectedProject, setSelectedProject] = useState<number | null>(null); // null表示所有项目
   const [categories, setCategories] = useState<ProjectCategoryGantt[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [showAssignee, setShowAssignee] = useState<boolean>(false); // 是否显示项目负责人
   
   // 任务条和进度条尺寸配置
   const TASK_BAR_HEIGHT = 32;           // 任务条总高度（与任务行32px一致）
@@ -293,7 +294,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       currentY += categoryHeight;
     });
 
-  }, [filteredCategories, expandedStates, height, containerWidth]);
+  }, [filteredCategories, expandedStates, height, containerWidth, showAssignee]);
 
   // 计算时间范围
   const calculateTimeRange = (categories: ProjectCategoryGantt[], containerWidth: number) => {
@@ -644,7 +645,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .text(isExpanded ? '📋' : '📂')
       .on('click', () => handleToggleProject(projectKey));
 
-    // 项目名称
+    // 项目名称（根据showAssignee决定是否显示负责人）
+    const projectDisplayName = showAssignee && project.assignee 
+      ? `${project.name} (${project.assignee})` 
+      : `${project.name} ${!isExpanded ? '(已折叠)' : ''}`;
+    
     titleGroup.append('text')
       .attr('x', 60)
       .attr('y', 0)
@@ -653,7 +658,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('font-weight', '600')
       .attr('fill', '#333333')
       .style('cursor', 'pointer')
-      .text(`${project.name} ${!isExpanded ? '(已折叠)' : ''}`)
+      .text(projectDisplayName)
       .on('click', () => onProjectClick?.(project))
       .on('mouseover', function() {
         d3.select(this)
@@ -1036,7 +1041,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
     const taskX = xScale(new Date(task.start));
     const taskWidth = Math.max(1, xScale(new Date(task.end)) - taskX);
 
-    // 渲染任务标题
+    // 渲染任务标题（根据showAssignee决定是否显示负责人）
+    const taskDisplayName = showAssignee && task.assignee
+      ? `${task.name} (${task.assignee})`
+      : task.name;
+    
     const taskTitle = svg.append('text')
       .attr('class', 'gantt-task-title')
       .attr('x', 60)
@@ -1044,7 +1053,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .attr('font-size', '12px')
       .attr('fill', '#333333')
       .style('cursor', 'pointer')
-      .text(`🔍 ${task.name}`)
+      .text(`🔍 ${taskDisplayName}`)
       .on('mouseover', function() {
         if (dragState.isDragging) return;
         showTooltip(svg, task.description || '暂无描述', 60, y + 12, '任务描述', svgWidth);
@@ -1707,9 +1716,11 @@ interface ControlBarProps {
   handleSearch: (value: string) => void;
   totalTaskCount: number;
   onExport: (format?: 'png' | 'jpg') => void;
+  showAssignee: boolean;
+  setShowAssignee: (value: boolean) => void;
 }
 
-const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  setSelectedProject,  selectedCategory,  setSelectedCategory,  handleSearch,  totalTaskCount, onExport}) => {
+const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  setSelectedProject,  selectedCategory,  setSelectedCategory,  handleSearch,  totalTaskCount, onExport, showAssignee, setShowAssignee}) => {
   // 获取所有项目列表用于选择
   const allProjects = useMemo(() => {
     if (!ganttData?.project_categories) return [];
@@ -1783,6 +1794,17 @@ const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  
           </div>
           <SearchInput
             onSearch={handleSearch}
+          />
+        </div>
+
+        <div className="gantt-control-group">
+          <div className="gantt-control-item">
+            <span className="gantt-control-label">显示负责人</span>
+          </div>
+          <Switch
+            checked={showAssignee}
+            onChange={(checked) => setShowAssignee(checked)}
+            size="small"
           />
         </div>
       </div>
@@ -1867,6 +1889,8 @@ const MemoizedControlBar = React.memo(ControlBar);
           handleSearch={handleSearch}
           totalTaskCount={totalTaskCount}
           onExport={(format) => handleExport(format || 'png')}
+          showAssignee={showAssignee}
+          setShowAssignee={setShowAssignee}
         />
         <div className="gantt-loading">
           <Spin>
@@ -1890,6 +1914,8 @@ const MemoizedControlBar = React.memo(ControlBar);
           handleSearch={handleSearch}
           totalTaskCount={totalTaskCount}
           onExport={(format) => handleExport(format || 'png')}
+          showAssignee={showAssignee}
+          setShowAssignee={setShowAssignee}
         />
         <div className="gantt-empty">
           <Empty description="加载失败，请重试" />
@@ -1910,6 +1936,8 @@ const MemoizedControlBar = React.memo(ControlBar);
         handleSearch={handleSearch}
         totalTaskCount={totalTaskCount}
         onExport={(format) => handleExport(format || 'png')}
+        showAssignee={showAssignee}
+        setShowAssignee={setShowAssignee}
       />
       <div className="gantt-chart-wrapper" style={{ overflowX: 'auto', marginBottom: '20px' }}>
         <div 

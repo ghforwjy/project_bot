@@ -43,6 +43,7 @@ export interface ProjectGantt {
   category_id?: number;
   category_name?: string;
   color?: string; // 项目颜色，基于大类主题色
+  assignee?: string; // 项目负责人
 }
 
 // 项目大类数据结构

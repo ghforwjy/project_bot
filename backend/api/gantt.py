@@ -332,7 +332,8 @@ def build_project_gantt(project: Project, db: Session) -> ProjectGantt:
         end_date=end_date.strftime("%Y-%m-%d") if end_date else "",
         progress=int(project.progress),
         tasks=gantt_tasks,
-        phases=phases
+        phases=phases,
+        assignee=project.assignee
     )
     
     return project_gantt

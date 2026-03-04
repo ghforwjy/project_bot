@@ -181,6 +181,7 @@ class ProjectGantt(BaseModel):
     progress: int
     tasks: List[GanttTask]
     phases: List[ProjectPhase] = []
+    assignee: Optional[str] = None  # 项目负责人
 
 
 class ProjectCategoryGantt(BaseModel):
