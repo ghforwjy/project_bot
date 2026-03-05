@@ -709,13 +709,24 @@ async def send_message(
                                                                 ai_content += f"\n当前系统中没有项目大类，请先创建大类。"
                                 # 处理data是字典的情况
                                 elif isinstance(data, dict):
-                                    # 处理project_name和assignee都是列表的情况（多个项目批量更新）
-                                    if isinstance(data.get("project_name"), list) and isinstance(data.get("assignee"), list):
+                                    # 处理project_name是列表的情况（多个项目批量更新）
+                                    if isinstance(data.get("project_name"), list):
                                         project_names = data.get("project_name", [])
-                                        assignees = data.get("assignee", [])
-                                        
-                                        # 配对处理，取最小长度
-                                        for project_name, assignee in zip(project_names, assignees):
+                                        # assignee可以是单个字符串（所有项目使用同一个负责人）
+                                        # 也可以是列表（每个项目使用不同的负责人）
+                                        assignee_value = data.get("assignee")
+
+                                        for i, project_name in enumerate(project_names):
+                                            # 如果assignee是列表，取对应索引的值
+                                            # 如果索引超出范围或assignee不是列表，使用assignee_value（可能是单个值或None）
+                                            if isinstance(assignee_value, list):
+                                                if i < len(assignee_value):
+                                                    assignee = assignee_value[i]
+                                                else:
+                                                    assignee = None  # 列表长度不足时，不更新assignee
+                                            else:
+                                                assignee = assignee_value  # 单个值（字符串或None）
+
                                             logger.debug(f"处理update_project意图，项目名称: {project_name}")
                                             extracted_info = {
                                                 "project_name": project_name,
@@ -793,19 +804,29 @@ async def send_message(
                             
                             elif intent == "refresh_project_status" and data.get("project_name"):
                                 logger.debug(f"处理refresh_project_status意图，项目名称: {data.get('project_name')}")
-                                result = project_service.refresh_project_status(data["project_name"])
-                                logger.info(f"刷新项目状态结果: {result}")
-                                if result["success"]:
-                                    ai_content += f"\n\n操作结果: {result['message']}"
-                                else:
-                                    ai_content += f"\n\n操作失败: {result['message']}"
-                            
+                                # 处理project_name是列表的情况
+                                project_names = data["project_name"]
+                                if not isinstance(project_names, list):
+                                    project_names = [project_names]
+                                for project_name in project_names:
+                                    result = project_service.refresh_project_status(project_name)
+                                    logger.info(f"刷新项目状态结果: {result}")
+                                    if result["success"]:
+                                        ai_content += f"\n\n操作结果: {result['message']}"
+                                    else:
+                                        ai_content += f"\n\n操作失败: {result['message']}"
+
                             elif intent == "query_project" and data.get("project_name"):
                                 logger.debug(f"处理query_project意图，项目名称: {data.get('project_name')}")
-                                result = project_service.get_project(data["project_name"])
-                                logger.info(f"查询项目结果: {result}")
-                                if result["success"]:
-                                    ai_content += f"\n\n项目信息: {result['message']}"
+                                # 处理project_name是列表的情况
+                                project_names = data["project_name"]
+                                if not isinstance(project_names, list):
+                                    project_names = [project_names]
+                                for project_name in project_names:
+                                    result = project_service.get_project(project_name)
+                                    logger.info(f"查询项目结果: {result}")
+                                    if result["success"]:
+                                        ai_content += f"\n\n项目信息: {result['message']}"
                                     if result['data']:
                                         ai_content += f"\n进度: {result['data'].get('progress', 0)}%"
                                         ai_content += f"\n状态: {result['data'].get('status', '未知')}"
@@ -816,25 +837,31 @@ async def send_message(
                                 logger.debug(f"[api.chat] 处理create_task意图，项目名称: {data.get('project_name')}")
                                 tasks = data.get("tasks", [])
                                 logger.debug(f"[api.chat] 要创建的任务数量: {len(tasks)}")
-                                
+
                                 if len(tasks) == 0:
                                     logger.warning(f"[api.chat] 没有任务需要创建，data中没有tasks数组")
                                     ai_content += f"\n\n任务操作失败: 未提供任务信息"
-                                
+
+                                # 处理project_name是列表的情况
+                                project_names = data["project_name"]
+                                if not isinstance(project_names, list):
+                                    project_names = [project_names]
+
                                 task_created_count = 0
                                 task_failed_count = 0
-                                for task in tasks:
-                                    if task.get("name"):
-                                        logger.debug(f"[api.chat] 创建任务: {task.get('name')}")
-                                        result = project_service.create_task(data["project_name"], task)
-                                        logger.info(f"[api.chat] 创建任务结果: {result}")
-                                        if result["success"]:
-                                            task_created_count += 1
-                                            ai_content += f"\n\n任务操作结果: {result['message']}"
-                                        else:
-                                            task_failed_count += 1
-                                            ai_content += f"\n\n任务操作失败: {result['message']}"
-                                
+                                for project_name in project_names:
+                                    for task in tasks:
+                                        if task.get("name"):
+                                            logger.debug(f"[api.chat] 创建任务: {task.get('name')}, 项目: {project_name}")
+                                            result = project_service.create_task(project_name, task)
+                                            logger.info(f"[api.chat] 创建任务结果: {result}")
+                                            if result["success"]:
+                                                task_created_count += 1
+                                                ai_content += f"\n\n任务操作结果: {result['message']}"
+                                            else:
+                                                task_failed_count += 1
+                                                ai_content += f"\n\n任务操作失败: {result['message']}"
+
                                 # 汇总创建结果
                                 if task_created_count > 0 or task_failed_count > 0:
                                     logger.info(f"[api.chat] 任务创建完成，成功: {task_created_count}，失败: {task_failed_count}")
@@ -845,25 +872,31 @@ async def send_message(
                                 logger.debug(f"[api.chat] 处理update_task意图，项目名称: {data.get('project_name')}")
                                 tasks = data.get("tasks", [])
                                 logger.debug(f"[api.chat] 要更新的任务数量: {len(tasks)}")
-                                
+
                                 if len(tasks) == 0:
                                     logger.warning(f"[api.chat] 没有任务需要更新，data中没有tasks数组")
                                     ai_content += f"\n\n任务操作失败: 未提供任务信息"
-                                
+
+                                # 处理project_name是列表的情况
+                                project_names = data["project_name"]
+                                if not isinstance(project_names, list):
+                                    project_names = [project_names]
+
                                 task_updated_count = 0
                                 task_failed_count = 0
-                                for task in tasks:
-                                    if task.get("name"):
-                                        logger.debug(f"[api.chat] 更新任务: {task.get('name')}, 任务数据: {task}")
-                                        result = project_service.update_task(data["project_name"], task.get("name"), task)
-                                        logger.info(f"[api.chat] 更新任务结果: {result}")
-                                        if result["success"]:
-                                            task_updated_count += 1
-                                            ai_content += f"\n\n任务操作结果: {result['message']}"
-                                        else:
-                                            task_failed_count += 1
-                                            ai_content += f"\n\n任务操作失败: {result['message']}"
-                                
+                                for project_name in project_names:
+                                    for task in tasks:
+                                        if task.get("name"):
+                                            logger.debug(f"[api.chat] 更新任务: {task.get('name')}, 项目: {project_name}, 任务数据: {task}")
+                                            result = project_service.update_task(project_name, task.get("name"), task)
+                                            logger.info(f"[api.chat] 更新任务结果: {result}")
+                                            if result["success"]:
+                                                task_updated_count += 1
+                                                ai_content += f"\n\n任务操作结果: {result['message']}"
+                                            else:
+                                                task_failed_count += 1
+                                                ai_content += f"\n\n任务操作失败: {result['message']}"
+
                                 # 汇总更新结果
                                 if task_updated_count > 0 or task_failed_count > 0:
                                     logger.info(f"[api.chat] 任务更新完成，成功: {task_updated_count}，失败: {task_failed_count}")
@@ -948,10 +981,14 @@ async def send_message(
                             
                             elif intent == "assign_category" and data.get("project_name") and data.get("category_name"):
                                 # 执行为项目指定大类操作
-                                project_name = data.get("project_name")
+                                # 处理project_name是列表的情况
+                                project_names = data.get("project_name")
+                                if not isinstance(project_names, list):
+                                    project_names = [project_names]
                                 category_name = data.get("category_name")
-                                result = project_service.assign_category(project_name, category_name)
-                                logger.info(f"为项目指定大类结果: {result}")
+                                for project_name in project_names:
+                                    result = project_service.assign_category(project_name, category_name)
+                                    logger.info(f"为项目指定大类结果: {result}")
                                 if result["success"]:
                                     ai_content += f"\n\n操作结果: {result['message']}"
                                 else:
@@ -987,15 +1024,20 @@ async def send_message(
                             
                             elif intent == "delete_task" and data.get("project_name"):
                                 tasks = data.get("tasks", [])
-                                for task in tasks:
-                                    if task.get("name"):
-                                        task_name = task.get("name")
-                                        result = project_service.delete_task(data["project_name"], task_name)
-                                        logger.info(f"删除任务结果: {result}")
-                                        if result["success"]:
-                                            ai_content += f"\n\n操作结果: {result['message']}"
-                                        else:
-                                            ai_content += f"\n\n操作失败: {result['message']}"
+                                # 处理project_name是列表的情况
+                                project_names = data["project_name"]
+                                if not isinstance(project_names, list):
+                                    project_names = [project_names]
+                                for project_name in project_names:
+                                    for task in tasks:
+                                        if task.get("name"):
+                                            task_name = task.get("name")
+                                            result = project_service.delete_task(project_name, task_name)
+                                            logger.info(f"删除任务结果: {result}")
+                                            if result["success"]:
+                                                ai_content += f"\n\n操作结果: {result['message']}"
+                                            else:
+                                                ai_content += f"\n\n操作失败: {result['message']}"
                             
                             else:
                                 logger.info(f"跳过无效指令: {instruction}")
