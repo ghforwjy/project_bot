@@ -895,7 +895,20 @@ async def send_message(
                                                 ai_content += f"\n\n任务操作结果: {result['message']}"
                                             else:
                                                 task_failed_count += 1
-                                                ai_content += f"\n\n任务操作失败: {result['message']}"
+                                                # 检查是否有建议列表
+                                                if result.get('data') and isinstance(result['data'], dict) and result['data'].get('suggestions'):
+                                                    suggestions = result['data']['suggestions']
+                                                    original_value = result['data'].get('original_value', task.get("name"))
+                                                    ai_content += f"\n\n我没有找到名为'{original_value}'的任务。"
+                                                    if suggestions:
+                                                        ai_content += f"\n您是否指的是以下任务？"
+                                                        for i, suggestion in enumerate(suggestions, 1):
+                                                            ai_content += f"\n{i}. {suggestion}"
+                                                        ai_content += f"\n\n请确认是哪个任务，或者提供正确的任务名称。"
+                                                    else:
+                                                        ai_content += f"\n\n操作失败: {result['message']}"
+                                                else:
+                                                    ai_content += f"\n\n任务操作失败: {result['message']}"
 
                                 # 汇总更新结果
                                 if task_updated_count > 0 or task_failed_count > 0:
@@ -1037,7 +1050,20 @@ async def send_message(
                                             if result["success"]:
                                                 ai_content += f"\n\n操作结果: {result['message']}"
                                             else:
-                                                ai_content += f"\n\n操作失败: {result['message']}"
+                                                # 检查是否有建议列表
+                                                if result.get('data') and isinstance(result['data'], dict) and result['data'].get('suggestions'):
+                                                    suggestions = result['data']['suggestions']
+                                                    original_value = result['data'].get('original_value', task_name)
+                                                    ai_content += f"\n\n我没有找到名为'{original_value}'的任务。"
+                                                    if suggestions:
+                                                        ai_content += f"\n您是否指的是以下任务？"
+                                                        for i, suggestion in enumerate(suggestions, 1):
+                                                            ai_content += f"\n{i}. {suggestion}"
+                                                        ai_content += f"\n\n请确认是哪个任务，或者提供正确的任务名称。"
+                                                    else:
+                                                        ai_content += f"\n\n操作失败: {result['message']}"
+                                                else:
+                                                    ai_content += f"\n\n操作失败: {result['message']}"
                             
                             else:
                                 logger.info(f"跳过无效指令: {instruction}")

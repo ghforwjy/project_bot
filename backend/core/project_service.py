@@ -458,10 +458,16 @@ class ProjectService:
             
             if not task:
                 logger.error(f"[core.project_service] 任务 '{task_name}' 不存在于项目 '{project_name}' 中")
+                # 任务不存在，返回相似任务列表
+                similar_tasks = self.find_similar_tasks(project.id, task_name)
                 return {
                     "success": False,
                     "message": f"任务 '{task_name}' 不存在于项目 '{project_name}' 中",
-                    "data": None
+                    "data": {
+                        "suggestions": similar_tasks,
+                        "field": "task_name",
+                        "original_value": task_name
+                    }
                 }
             logger.debug(f"[core.project_service] 找到任务: {task.name}, ID: {task.id}")
 
@@ -953,6 +959,41 @@ class ProjectService:
             logger.error(f"查找相似大类失败: {str(e)}")
             return []
     
+    def find_similar_tasks(self, project_id: int, task_name: str) -> list:
+        """
+        查找与给定名称相似的任务
+
+        Args:
+            project_id: 项目ID
+            task_name: 任务名称
+
+        Returns:
+            list: 相似的任务名称列表
+        """
+        try:
+            # 查找名称相似的任务（使用LIKE查询）
+            tasks = self.db.query(Task).filter(
+                Task.project_id == project_id,
+                Task.name.like(f"%{task_name}%")
+            ).all()
+            
+            # 如果没有找到，查找任务名称是否包含在输入中
+            if not tasks:
+                # 尝试用输入包含任务名称的方式查找
+                all_project_tasks = self.db.query(Task).filter(Task.project_id == project_id).all()
+                tasks = [t for t in all_project_tasks if task_name in t.name or t.name in task_name]
+            
+            # 如果还是没有找到，返回项目中所有任务（供用户选择）
+            if not tasks:
+                all_tasks = self.db.query(Task).filter(Task.project_id == project_id).all()
+                return [t.name for t in all_tasks]
+            
+            return [t.name for t in tasks]
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"查找相似任务失败: {str(e)}")
+            return []
+    
     def assign_category(self, project_name: str, category_name: str) -> Dict:
         """
         为项目指定大类
@@ -1080,29 +1121,23 @@ class ProjectService:
                     }
                 }
             
-            # 查找任务 - 先精确匹配，再模糊匹配
+            # 查找任务
             task = self.db.query(Task).filter(
                 Task.project_id == project.id,
                 Task.name == task_name
             ).first()
             
-            # 如果精确匹配失败，尝试模糊匹配（去除空格后比较）
             if not task:
-                # 获取项目中的所有任务
-                all_tasks = self.db.query(Task).filter(Task.project_id == project.id).all()
-                # 标准化查找名称（去除所有空格）
-                normalized_search_name = task_name.replace(" ", "").replace("  ", "")
-                for t in all_tasks:
-                    normalized_task_name = t.name.replace(" ", "").replace("  ", "")
-                    if normalized_task_name == normalized_search_name:
-                        task = t
-                        break
-            
-            if not task:
+                # 任务不存在，返回相似任务列表
+                similar_tasks = self.find_similar_tasks(project.id, task_name)
                 return {
                     "success": False,
                     "message": f"任务 '{task_name}' 不存在于项目 '{project_name}' 中",
-                    "data": None
+                    "data": {
+                        "suggestions": similar_tasks,
+                        "field": "task_name",
+                        "original_value": task_name
+                    }
                 }
             
             # 删除任务
