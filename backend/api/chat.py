@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models.database import get_db
-from models.entities import Conversation
+from models.entities import Conversation, Project, Task
 from models.schemas import ResponseModel, ChatMessageCreate
 
 router = APIRouter()
@@ -568,11 +568,67 @@ async def send_message(
             
             # 执行操作（遍历执行所有有效的指令）
             from core.project_service import get_project_service
+            project_service = get_project_service(db)
             
-            # 风险控制： 当requires_confirmation为True时，不执行指令，直接返回确认提示
+            # 风险控制： 当requires_confirmation为True时，需要检查任务是否存在
             if requires_confirmation:
-                logger.info(f"[api.chat] requires_confirmation=True, 跳过指令执行，返回确认提示")
-                # 直接返回AI的回复内容（包含确认提示）
+                logger.info(f"[api.chat] requires_confirmation=True, 检查任务是否存在")
+                
+                # 从content中提取任务信息
+                import re
+                
+                # 匹配任务名称模式：'任务名' 或 "任务名"
+                task_name_pattern = r"['\"]([^'\"]+)['\"]"
+                # 匹配项目名称模式：'项目名'项目 或 "项目名"项目
+                project_name_pattern = r"['\"]([^'\"]+)['\"](?:项目|任务)"
+                
+                # 尝试从content中提取项目名和任务名
+                for instruction in ai_instructions:
+                    content = instruction.get("content", "")
+                    
+                    # 检查是否涉及任务操作（创建/更新/删除任务）
+                    task_keywords = ["创建", "更新", "删除", "修改", "任务"]
+                    has_task_keyword = any(kw in content for kw in task_keywords)
+                    
+                    if has_task_keyword:
+                        # 提取项目名和任务名
+                        project_match = re.search(r"为['\"]([^'\"]+)['\"]项目", content)
+                        task_match = re.search(r"['\"]([^'\"]+)['\"]任务", content)
+                        
+                        if project_match and task_match:
+                            project_name = project_match.group(1)
+                            task_name = task_match.group(1)
+                            
+                            logger.info(f"[api.chat] 从content提取: 项目={project_name}, 任务={task_name}")
+                            
+                            # 查找项目
+                            project = project_service.db.query(Project).filter(Project.name == project_name).first()
+                            
+                            if project:
+                                # 查找任务是否存在
+                                existing_task = project_service.db.query(Task).filter(
+                                    Task.project_id == project.id,
+                                    Task.name == task_name
+                                ).first()
+                                
+                                if not existing_task:
+                                    # 任务不存在，查找相似任务
+                                    similar_tasks = project_service.find_similar_tasks(project.id, task_name)
+                                    
+                                    # 修改AI回复，提示任务不存在
+                                    ai_content = f"我没有找到名为'{task_name}'的任务。"
+                                    if similar_tasks:
+                                        ai_content += f"\n您是否指的是以下任务？"
+                                        for i, suggestion in enumerate(similar_tasks, 1):
+                                            ai_content += f"\n{i}. {suggestion}"
+                                        ai_content += f"\n\n请确认是哪个任务，或者提供正确的任务名称。"
+                                    else:
+                                        ai_content += f"\n项目中没有任务，请先创建任务。"
+                                    
+                                    logger.info(f"[api.chat] 任务不存在，返回建议列表")
+                                    break
+                
+                # 直接返回修改后的内容
                 main_content = ai_content
                 main_analysis = None
             else:
