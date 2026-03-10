@@ -1080,11 +1080,23 @@ class ProjectService:
                     }
                 }
             
-            # 查找任务
+            # 查找任务 - 先精确匹配，再模糊匹配
             task = self.db.query(Task).filter(
                 Task.project_id == project.id,
                 Task.name == task_name
             ).first()
+            
+            # 如果精确匹配失败，尝试模糊匹配（去除空格后比较）
+            if not task:
+                # 获取项目中的所有任务
+                all_tasks = self.db.query(Task).filter(Task.project_id == project.id).all()
+                # 标准化查找名称（去除所有空格）
+                normalized_search_name = task_name.replace(" ", "").replace("  ", "")
+                for t in all_tasks:
+                    normalized_task_name = t.name.replace(" ", "").replace("  ", "")
+                    if normalized_task_name == normalized_search_name:
+                        task = t
+                        break
             
             if not task:
                 return {
