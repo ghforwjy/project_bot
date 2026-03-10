@@ -569,6 +569,16 @@ async def send_message(
             # 执行操作（遍历执行所有有效的指令）
             from core.project_service import get_project_service
             
+            # 风险控制： 当requires_confirmation为True时，不执行指令，直接返回确认提示
+            if requires_confirmation:
+                logger.info(f"[api.chat] requires_confirmation=True, 跳过指令执行，返回确认提示")
+                # 直接返回AI的回复内容（包含确认提示）
+                main_content = ai_content
+                main_analysis = None
+            else:
+                # 执行操作（遍历执行所有有效的指令）
+                from core.project_service import get_project_service
+            
             # 遍历所有指令
             if ai_instructions:
                 logger.info(f"[api.chat] 开始执行 {len(ai_instructions)} 个指令")
