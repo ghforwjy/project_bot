@@ -499,6 +499,9 @@ class ProjectService:
             if "status" in task_data:
                 logger.debug(f"[core.project_service] 设置status: {task_data['status']}")
                 update_data["status"] = task_data["status"]
+            if "new_name" in task_data:
+                logger.debug(f"[core.project_service] 设置new_name: {task_data['new_name']}")
+                update_data["name"] = task_data["new_name"]
             logger.debug(f"[core.project_service] 更新数据准备完成: {update_data}")
 
             # 使用工具类更新任务
@@ -968,27 +971,40 @@ class ProjectService:
             task_name: 任务名称
 
         Returns:
-            list: 相似的任务名称列表
+            list: 相似的任务名称列表（最多返回5个）
         """
         try:
-            # 查找名称相似的任务（使用LIKE查询）
+            logger = logging.getLogger(__name__)
+            logger.info(f"[find_similar_tasks] 开始查找相似任务, project_id={project_id}, task_name={task_name}")
+            
+            # 第一步：LIKE搜索
             tasks = self.db.query(Task).filter(
                 Task.project_id == project_id,
                 Task.name.like(f"%{task_name}%")
             ).all()
+            logger.info(f"[find_similar_tasks] LIKE搜索: 找到 {len(tasks)} 个任务")
             
-            # 如果没有找到，查找任务名称是否包含在输入中
-            if not tasks:
-                # 尝试用输入包含任务名称的方式查找
-                all_project_tasks = self.db.query(Task).filter(Task.project_id == project_id).all()
-                tasks = [t for t in all_project_tasks if task_name in t.name or t.name in task_name]
-            
-            # 如果还是没有找到，返回项目中所有任务（供用户选择）
+            # 如果LIKE搜索找不到，使用相似度匹配
             if not tasks:
                 all_tasks = self.db.query(Task).filter(Task.project_id == project_id).all()
-                return [t.name for t in all_tasks]
+                logger.info(f"[find_similar_tasks] LIKE搜索未找到，开始相似度匹配，共 {len(all_tasks)} 个任务")
+                
+                from difflib import SequenceMatcher
+                scored_tasks = []
+                for t in all_tasks:
+                    ratio = SequenceMatcher(None, task_name, t.name).ratio()
+                    logger.debug(f"[find_similar_tasks] 相似度: '{task_name}' vs '{t.name}' = {ratio:.2f}")
+                    if ratio >= 0.6:  # 相似度阈值60%
+                        scored_tasks.append((t, ratio))
+                
+                # 按相似度降序排序，取前5个
+                scored_tasks.sort(key=lambda x: x[1], reverse=True)
+                tasks = [t for t, score in scored_tasks[:5]]
+                logger.info(f"[find_similar_tasks] 相似度匹配: 找到 {len(tasks)} 个任务，阈值=0.6")
             
-            return [t.name for t in tasks]
+            result = [t.name for t in tasks[:5]]  # 最多返回5个
+            logger.info(f"[find_similar_tasks] 最终结果: 返回 {len(result)} 个相似任务: {result}")
+            return result
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"查找相似任务失败: {str(e)}")

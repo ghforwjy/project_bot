@@ -71,7 +71,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     categories: {},
     projects: {}
   });
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number[]>([]);
   const {
     searchQuery,
     setSearchQuery,
@@ -87,6 +87,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const TASK_BAR_BORDER_WIDTH = 1;      // 边框宽度
   const TASK_BAR_INNER_HEIGHT = TASK_BAR_HEIGHT - TASK_BAR_BORDER_WIDTH * 2;  // 内部高度（30）
   const TASK_BAR_Y_OFFSET = TASK_BAR_HEIGHT / 2;  // Y轴偏移量（16）
+  
+  // 左侧标签区域配置
+  const LEFT_LABEL_WIDTH = 300;  // 左侧标签区域宽度（包含任务标题）
+  const LEFT_LABEL_PADDING = 40; // 左侧标签区域内边距
 
   // 拖拽状态管理
   const [dragState, setDragState] = useState<{
@@ -157,8 +161,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
       );
     }
     
-    if (selectedCategory !== null) {
-      result = result.filter((category: ProjectCategoryGantt) => category.id === selectedCategory);
+    if (selectedCategory.length > 0) {
+      result = result.filter((category: ProjectCategoryGantt) => selectedCategory.includes(category.id));
     }
     
     if (searchQuery && searchQuery.trim()) {
@@ -251,6 +255,29 @@ const GanttChart: React.FC<GanttChartProps> = ({
       .style('overflow-y', 'auto')
       .style('overflow-x', 'hidden');
 
+    // 计算所有任务标题的最大宽度
+    let maxTitleWidth = 0;
+    filteredCategories.forEach(category => {
+      category.projects.forEach(project => {
+        project.tasks.forEach(task => {
+          const taskDisplayName = showAssignee && task.assignee
+            ? `${task.name} (${task.assignee})`
+            : task.name;
+          const titleText = `🔍 ${taskDisplayName}`;
+          // 估算文字宽度：中文字符约12px，英文/数字约7px
+          let textWidth = 0;
+          for (const char of titleText) {
+            textWidth += /[\u4e00-\u9fa5]/.test(char) ? 12 : 7;
+          }
+          maxTitleWidth = Math.max(maxTitleWidth, textWidth);
+        });
+      });
+    });
+    
+    // 动态计算左侧标签区域宽度（标题最大宽度 + 左边距 + 右边距）
+    const calculatedLeftWidth = LEFT_LABEL_PADDING + maxTitleWidth + 20; // 20px右边距
+    const dynamicLeftLabelWidth = Math.max(calculatedLeftWidth, LEFT_LABEL_WIDTH);
+    
     const timeRange = calculateTimeRange(filteredCategories, chartWidth);
     const svgWidth = chartWidth;
 
@@ -266,7 +293,23 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
     const xScale = d3.scaleTime()
       .domain([new Date(timeRange.min), new Date(timeRange.max)])
-      .range([240, svgWidth - 40]);
+      .range([dynamicLeftLabelWidth, svgWidth - 40]);
+
+    // 调试日志：时间范围和xScale
+    console.log('=== 甘特图渲染调试 ===');
+    console.log('最大标题宽度:', maxTitleWidth);
+    console.log('动态左侧标签区域宽度:', dynamicLeftLabelWidth);
+    console.log('时间范围:', {
+      min: new Date(timeRange.min).toLocaleDateString(),
+      max: new Date(timeRange.max).toLocaleDateString()
+    });
+    console.log('xScale:', {
+      domain: xScale.domain().map((d: Date) => d.toLocaleDateString()),
+      range: xScale.range()
+    });
+    console.log('容器宽度:', chartWidth);
+    console.log('时间轴起点:', xScale.range()[0], 'px');
+    console.log('时间轴终点:', xScale.range()[1], 'px');
 
     // 直接使用y坐标，不进行压缩
     const yScale = (y: number) => y + 40;
@@ -318,35 +361,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
     if (minTime === Infinity || maxTime === -Infinity) {
       minTime = today - 30 * 24 * 60 * 60 * 1000;
       maxTime = today + 30 * 24 * 60 * 60 * 1000;
-    } else {
-      // 计算有效宽度（减去左侧标签区域的宽度）
-      const effectiveWidth = containerWidth - 280;
-      
-      // 计算总时间范围（毫秒）
-      const totalTimeRange = maxTime - minTime;
-      
-      // 根据有效宽度计算理想的时间范围
-      // 假设每个任务条至少需要20px宽度
-      const idealTimeRange = (effectiveWidth / 20) * (7 * 24 * 60 * 60 * 1000); // 每个任务条7天
-      
-      // 添加缓冲时间
-      const bufferDays = effectiveWidth > 800 ? 7 : 3;
-      const bufferTime = bufferDays * 24 * 60 * 60 * 1000;
-      
-      // 调整时间范围
-      if (totalTimeRange > idealTimeRange) {
-        // 如果总时间范围大于理想时间范围，以任务时间范围的中心显示
-        const centerTime = (minTime + maxTime) / 2;
-        const halfRange = Math.max(idealTimeRange / 2, totalTimeRange / 2);
-        minTime = centerTime - halfRange;
-        maxTime = centerTime + halfRange;
-      } else {
-        // 如果总时间范围小于理想时间范围，添加缓冲
-        minTime -= bufferTime;
-        maxTime += bufferTime;
-      }
     }
-
+    
     return { min: minTime, max: maxTime, today };
   };
 
@@ -380,7 +396,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   // 渲染时间轴
   const renderTimeAxis = (svg: any, xScale: any, width: number, height: number) => {
     // 根据宽度计算合适的刻度密度
-    const tickCount = Math.max(2, Math.min(15, Math.floor((width - 240) / 80)));
+    const tickCount = Math.max(2, Math.min(15, Math.floor((width - LEFT_LABEL_WIDTH) / 80)));
     
     // 时间轴刻度
     const xAxis = d3.axisBottom(xScale)
@@ -437,7 +453,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     const todayX = xScale(today);
     
     // 只有当今天在时间范围内时才显示
-    if (todayX >= 240 && todayX <= chartWidth - 40) {
+    if (todayX >= LEFT_LABEL_WIDTH && todayX <= chartWidth - 40) {
       // 垂直线
       svg.append('line')
         .attr('class', 'gantt-today-line')
@@ -482,7 +498,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
       const yearX = xScale(date);
       
       // 只有当日期在时间范围内时才显示
-      if (yearX >= 240 && yearX <= chartWidth - 40) {
+      if (yearX >= LEFT_LABEL_WIDTH && yearX <= chartWidth - 40) {
         // 垂直线
         svg.append('line')
           .attr('class', 'gantt-year-transition-line')
@@ -902,7 +918,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
           xScale, 
           yScale, 
           taskY,
-          svgWidth
+          svgWidth,
+          LEFT_LABEL_WIDTH
         );
         
         taskY += 32; // 每个任务32px高度
@@ -1031,37 +1048,32 @@ const GanttChart: React.FC<GanttChartProps> = ({
     xScale: any, 
     yScale: any, 
     yPosition: number,
-    svgWidth: number
+    svgWidth: number,
+    leftLabelWidth: number
   ) => {
     const y = yScale(yPosition);
     const start = new Date(task.start).getTime();
     const end = new Date(task.end).getTime();
 
     // 计算任务条位置和宽度
-    const taskX = xScale(new Date(task.start));
-    const taskWidth = Math.max(1, xScale(new Date(task.end)) - taskX);
-
-    // 渲染任务标题（根据showAssignee决定是否显示负责人）
-    const taskDisplayName = showAssignee && task.assignee
-      ? `${task.name} (${task.assignee})`
-      : task.name;
+    const taskStartX = xScale(new Date(task.start));
+    const taskEndX = xScale(new Date(task.end));
     
-    const taskTitle = svg.append('text')
-      .attr('class', 'gantt-task-title')
-      .attr('x', 60)
-      .attr('y', y + 12)
-      .attr('font-size', '12px')
-      .attr('fill', '#333333')
-      .style('cursor', 'pointer')
-      .text(`🔍 ${taskDisplayName}`)
-      .on('mouseover', function() {
-        if (dragState.isDragging) return;
-        showTooltip(svg, task.description || '暂无描述', 60, y + 12, '任务描述', svgWidth);
-      })
-      .on('mouseout', function() {
-        if (dragState.isDragging) return;
-        svg.selectAll('.gantt-tooltip').remove();
-      });
+    // 确保任务条不超过左侧标签区域
+    const taskX = Math.max(leftLabelWidth, taskStartX);
+    const taskWidth = Math.max(1, taskEndX - taskX);
+
+    // 调试日志：任务条坐标
+    console.log('任务:', task.name);
+    console.log('  任务开始时间:', new Date(task.start).toLocaleDateString());
+    console.log('  任务结束时间:', new Date(task.end).toLocaleDateString());
+    console.log('  taskStartX:', taskStartX);
+    console.log('  taskEndX:', taskEndX);
+    console.log('  taskX:', taskX);
+    console.log('  taskWidth:', taskWidth);
+    console.log('  任务标题x坐标:', LEFT_LABEL_PADDING, 'px');
+    console.log('  任务标题y坐标:', y + 12);
+    console.log('  左侧标签区域宽度:', leftLabelWidth, 'px');
 
     // 判断任务是否有时间信息
     const hasTime = task.has_time !== false;
@@ -1070,6 +1082,28 @@ const GanttChart: React.FC<GanttChartProps> = ({
     if (hasTime) {
       renderTaskBar(svg, task, categoryColor, xScale, y, taskX, taskWidth, svgWidth);
     }
+
+    // 渲染任务标题（根据showAssignee决定是否显示负责人）
+    const taskDisplayName = showAssignee && task.assignee
+      ? `${task.name} (${task.assignee})`
+      : task.name;
+    
+    const taskTitle = svg.append('text')
+      .attr('class', 'gantt-task-title')
+      .attr('x', LEFT_LABEL_PADDING)
+      .attr('y', y + 12)
+      .attr('font-size', '12px')
+      .attr('fill', '#333333')
+      .style('cursor', 'pointer')
+      .text(`🔍 ${taskDisplayName}`)
+      .on('mouseover', function() {
+        if (dragState.isDragging) return;
+        showTooltip(svg, task.description || '暂无描述', LEFT_LABEL_PADDING, y + 12, '任务描述', svgWidth);
+      })
+      .on('mouseout', function() {
+        if (dragState.isDragging) return;
+        svg.selectAll('.gantt-tooltip').remove();
+      });
   };
 
   // 渲染任务条（独立函数，只处理有时间的任务）
@@ -1429,9 +1463,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
     } else if (taskWidth > 15) {
       // 短任务条：两侧外部显示开始和结束时间
       // 开始时间（左侧外部）
+      const startLabelX = Math.max(LEFT_LABEL_WIDTH - 8, taskX - 8); // 确保时间标签不进入左侧标签区域
       svg.append('text')
         .attr('class', 'gantt-task-time-label-external')
-        .attr('x', taskX - 8)
+        .attr('x', startLabelX)
         .attr('y', y)
         .attr('font-size', '9px')
         .attr('fill', '#666666')
@@ -1711,8 +1746,8 @@ interface ControlBarProps {
   ganttData: AllGanttData | undefined;
   selectedProject: number | null;
   setSelectedProject: (value: number | null) => void;
-  selectedCategory: number | null;
-  setSelectedCategory: (value: number | null) => void;
+  selectedCategory: number[];
+  setSelectedCategory: (value: number[]) => void;
   handleSearch: (value: string) => void;
   totalTaskCount: number;
   onExport: (format?: 'png' | 'jpg') => void;
@@ -1767,17 +1802,15 @@ const ControlBar: React.FC<ControlBarProps> = ({  ganttData,  selectedProject,  
             <span className="gantt-control-label">项目大类</span>
           </div>
           <Select
+            mode="multiple"
             value={selectedCategory}
             onChange={(value) => setSelectedCategory(value)}
             className="gantt-control-select"
-            allowClear
             placeholder="全部"
+            optionLabelProp="label"
           >
-            <Option value="">
-              <span>全部</span>
-            </Option>
             {ganttData?.project_categories.map(category => (
-              <Option key={category.id} value={category.id}>
+              <Option key={category.id} value={category.id} label={category.name}>
                 <span>{category.name}</span>
                 <span className="gantt-option-count">
                   ({category.projects.length})

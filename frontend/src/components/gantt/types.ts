@@ -84,8 +84,8 @@ export interface GanttChartProps {
 export interface GanttControlBarProps {
   viewMode: 'single' | 'all';
   onViewModeChange: (mode: 'single' | 'all') => void;
-  selectedCategory: number | null;
-  onCategoryChange: (categoryId: number | null) => void;
+  selectedCategory: number[];
+  onCategoryChange: (categoryId: number[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   categories: ProjectCategoryGantt[];
@@ -138,5 +138,5 @@ export interface GanttRenderData {
   timeRange: GanttTimeRange;
   expandedStates: ExpandedStates;
   searchQuery: string;
-  selectedCategory: number | null;
+  selectedCategory: number[];
 }
