@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-交互式聊天测试程序
-用于测试LangChain聊天功能
+基于LangChain和LangGraph的交互式聊天测试程序
+用于测试新的对话系统
 """
 import os
 import sys
@@ -13,12 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 加载.env文件
 load_dotenv()
 
-from backend.core.intent_classifier import get_intent_classifier
-from backend.core.route_handler import get_route_handler
+from backend.core.langchain_chat import get_langchain_chat
 from backend.models.test_database import get_test_db, init_test_db
 
 def main():
-    print("=== 项目管理助手交互式测试 ===")
+    print("=== LangChain项目管理助手交互式测试 ===")
     print("输入 'exit' 或 '退出' 结束对话")
     print("\n正在初始化...")
     
@@ -33,21 +32,18 @@ def main():
         print("请设置环境变量 DOUBAO_API_KEY 后再运行")
         return
     
-    try:
-        # 初始化意图分类器
-        classifier = get_intent_classifier()
-        print("✅ 意图分类器初始化成功")
-    except Exception as e:
-        print(f"❌ 意图分类器初始化失败：{e}")
-        return
-    
-    # 初始化路由处理器
-    route_handler = get_route_handler()
-    print("✅ 路由处理器初始化成功")
-    
     # 获取测试数据库会话
     db = next(get_test_db())
     print("✅ 数据库连接成功")
+    
+    try:
+        # 初始化LangChain对话系统
+        chat_system = get_langchain_chat(db)
+        print("✅ LangChain对话系统初始化成功")
+    except Exception as e:
+        print(f"❌ LangChain对话系统初始化失败：{e}")
+        db.close()
+        return
     
     print("\n助手：你好！我是你的项目管理助手，有什么可以帮你的？")
     
@@ -65,17 +61,12 @@ def main():
                 print("助手：请输入你的请求")
                 continue
             
-            # 分类意图
+            # 处理用户输入
             print("\n正在分析你的请求...")
-            intent = classifier.classify(user_input)
-            print(f"意图：{intent.intent} (置信度：{intent.confidence:.2f})")
-            print(f"提取的数据：{intent.data}")
-            
-            # 路由处理
-            result = route_handler.route(intent, db)
+            response = chat_system.chat(user_input)
             
             # 显示结果
-            print(f"\n助手：{result['message']}")
+            print(f"\n助手：{response}")
                 
         except Exception as e:
             print(f"❌ 处理失败：{e}")

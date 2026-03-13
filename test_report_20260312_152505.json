@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T15:25:00.792919",
+  "end_time": "2026-03-12T15:25:05.036167",
+  "duration": 4.243248,
+  "total": 1,
+  "passed": 0,
+  "failed": 1,
+  "pass_rate": 0.0,
+  "test_cases": [
+    {
+      "name": "聊天/其他",
+      "description": "测试聊天功能",
+      "inputs": [
+        "你好"
+      ],
+      "expected": [
+        "你好"
+      ],
+      "results": [
+        "未知意图"
+      ],
+      "passed": false
+    }
+  ]
+}

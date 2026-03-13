@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T13:54:38.029892",
+  "end_time": "2026-03-12T13:54:42.575666",
+  "duration": 4.545774,
+  "total": 1,
+  "passed": 1,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "test_cases": [
+    {
+      "name": "创建项目大类",
+      "description": "测试创建项目大类功能",
+      "inputs": [
+        "创建一个项目大类，名称为研发"
+      ],
+      "expected": [
+        "创建成功"
+      ],
+      "results": [
+        "项目大类 '研发_JSOa' 创建成功"
+      ],
+      "passed": true
+    }
+  ]
+}

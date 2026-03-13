@@ -5,6 +5,11 @@
 from pydantic import BaseModel, Field
 import json
 import os
+import sys
+
+# 添加backend目录到Python路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from llm.factory import get_default_provider
 from llm.base import Message, LLMConfig
 
@@ -43,6 +48,9 @@ class IntentClassifier:
         self.llm_provider = get_default_provider()
         if not self.llm_provider:
             raise ValueError("无法获取LLM提供商，请检查环境变量配置")
+        
+        # 初始化对话历史
+        self.conversation_history = []
     
     def classify(self, user_input: str) -> Intent:
         """
@@ -86,9 +94,15 @@ class IntentClassifier:
         
         # 构建消息列表
         messages = [
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_input)
+            Message(role="system", content=system_prompt)
         ]
+        
+        # 添加对话历史
+        for msg in self.conversation_history:
+            messages.append(msg)
+        
+        # 添加当前用户消息
+        messages.append(Message(role="user", content=user_input))
         
         # 执行分类
         try:
@@ -113,13 +127,27 @@ class IntentClassifier:
                 json_str = ai_content
             
             result = json.loads(json_str)
+            # 确保data字段存在
+            if "data" not in result:
+                result["data"] = {}
+            # 添加用户消息到data中
+            result["data"]["user_message"] = user_input
+            
+            # 更新对话历史
+            self.conversation_history.append(Message(role="user", content=user_input))
+            self.conversation_history.append(Message(role="assistant", content=ai_content))
+            
+            # 限制对话历史长度
+            if len(self.conversation_history) > 10:
+                self.conversation_history = self.conversation_history[-10:]
+            
             return Intent(**result)
         except Exception as e:
             # 出错时返回默认意图
             return Intent(
                 intent="chat",
                 confidence=0.5,
-                data={}
+                data={"user_message": user_input}
             )
 
 

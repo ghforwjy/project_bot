@@ -1,0 +1,149 @@
+{
+  "start_time": "2026-03-12T13:43:16.539623",
+  "end_time": "2026-03-12T13:43:16.553364",
+  "duration": 0.013741,
+  "total": 11,
+  "passed": 0,
+  "failed": 0,
+  "pass_rate": 0.0,
+  "test_cases": [
+    {
+      "name": "创建项目",
+      "description": "测试创建项目功能",
+      "inputs": [
+        "创建一个新项目，名称为测试项目"
+      ],
+      "expected": [
+        "创建成功"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "查询项目",
+      "description": "测试查询项目功能",
+      "inputs": [
+        "查询测试项目的信息"
+      ],
+      "expected": [
+        "测试项目"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "创建项目大类",
+      "description": "测试创建项目大类功能",
+      "inputs": [
+        "创建一个项目大类，名称为研发"
+      ],
+      "expected": [
+        "创建成功"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "为项目分配大类",
+      "description": "测试为项目分配大类功能",
+      "inputs": [
+        "为项目测试项目分配大类研发"
+      ],
+      "expected": [
+        "成功指定"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "创建任务",
+      "description": "测试创建任务功能",
+      "inputs": [
+        "创建一个任务，项目是测试项目，任务名称是测试任务"
+      ],
+      "expected": [
+        "创建成功"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "更新任务",
+      "description": "测试更新任务功能",
+      "inputs": [
+        "更新任务，项目是测试项目，任务名称是测试任务，状态设置为进行中"
+      ],
+      "expected": [
+        "更新成功"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "项目不存在处理",
+      "description": "测试项目不存在时的处理逻辑",
+      "inputs": [
+        "查询不存在的项目"
+      ],
+      "expected": [
+        "没有找到"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "聊天/其他",
+      "description": "测试聊天功能",
+      "inputs": [
+        "你好"
+      ],
+      "expected": [
+        "你好"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "创建项目并分配大类",
+      "description": "测试创建项目并分配大类的组合操作",
+      "inputs": [
+        "创建一个新项目，名称为测试项目2",
+        "为这个项目分配大类研发"
+      ],
+      "expected": [
+        "创建成功",
+        "成功指定"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "多轮指代",
+      "description": "测试多轮对话中的指代关系处理",
+      "inputs": [
+        "创建一个项目，名称为测试项目3",
+        "为它创建一个任务，名称为测试任务3",
+        "把它的状态设置为进行中"
+      ],
+      "expected": [
+        "创建成功",
+        "创建成功",
+        "更新成功"
+      ],
+      "results": [],
+      "passed": false
+    },
+    {
+      "name": "未设计的意图",
+      "description": "测试未设计的意图处理",
+      "inputs": [
+        "帮我预订会议室"
+      ],
+      "expected": [
+        "不支持"
+      ],
+      "results": [],
+      "passed": false
+    }
+  ]
+}

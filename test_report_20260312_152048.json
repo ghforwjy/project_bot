@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T15:20:42.459889",
+  "end_time": "2026-03-12T15:20:48.336352",
+  "duration": 5.876463,
+  "total": 1,
+  "passed": 0,
+  "failed": 1,
+  "pass_rate": 0.0,
+  "test_cases": [
+    {
+      "name": "创建任务",
+      "description": "测试创建任务功能",
+      "inputs": [
+        "创建一个任务，项目是测试项目，任务名称是测试任务"
+      ],
+      "expected": [
+        "成功创建"
+      ],
+      "results": [
+        "创建任务失败"
+      ],
+      "passed": false
+    }
+  ]
+}

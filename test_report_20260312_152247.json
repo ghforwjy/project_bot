@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T15:22:40.442518",
+  "end_time": "2026-03-12T15:22:47.416407",
+  "duration": 6.973889,
+  "total": 1,
+  "passed": 0,
+  "failed": 1,
+  "pass_rate": 0.0,
+  "test_cases": [
+    {
+      "name": "更新任务",
+      "description": "测试更新任务功能",
+      "inputs": [
+        "更新任务，项目是测试项目，任务名称是测试任务，状态设置为进行中"
+      ],
+      "expected": [
+        "更新成功"
+      ],
+      "results": [
+        "成功更新 1 个任务"
+      ],
+      "passed": false
+    }
+  ]
+}

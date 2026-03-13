@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T13:53:34.949623",
+  "end_time": "2026-03-12T13:53:39.085946",
+  "duration": 4.136323,
+  "total": 1,
+  "passed": 1,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "test_cases": [
+    {
+      "name": "查询项目",
+      "description": "测试查询项目功能",
+      "inputs": [
+        "查询测试项目的信息"
+      ],
+      "expected": [
+        "测试项目"
+      ],
+      "results": [
+        "项目 '测试项目' 的信息：\n描述：None\n状态：pending\n进度：0.0%\n开始日期：None\n结束日期：None\n类别：None\n任务数量：0\n已完成任务：0"
+      ],
+      "passed": true
+    }
+  ]
+}

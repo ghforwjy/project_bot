@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T13:50:08.695620",
+  "end_time": "2026-03-12T13:50:12.924245",
+  "duration": 4.228625,
+  "total": 1,
+  "passed": 0,
+  "failed": 1,
+  "pass_rate": 0.0,
+  "test_cases": [
+    {
+      "name": "创建项目",
+      "description": "测试创建项目功能",
+      "inputs": [
+        "创建一个新项目，名称为测试项目"
+      ],
+      "expected": [
+        "创建成功"
+      ],
+      "results": [
+        "项目 '测试项目' 已存在"
+      ],
+      "passed": false
+    }
+  ]
+}

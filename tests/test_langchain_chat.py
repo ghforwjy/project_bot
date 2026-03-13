@@ -1,166 +1,114 @@
 #!/usr/bin/env python3
 """
-LangChain聊天功能测试
+自动化测试LangChain对话系统
+测试核心功能，包括意图识别、多轮对话和业务逻辑执行
 """
-import json
-import time
-import requests
-from unittest.mock import Mock, patch
+import os
+import sys
+from dotenv import load_dotenv
 
-BASE_URL = "http://localhost:8000/api/v1"
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 加载.env文件
+load_dotenv()
 
-def test_intent_classification():
-    """
-    测试意图分类功能
-    """
-    print("=== 测试意图分类功能 ===")
-    
-    test_cases = [
-        ("创建一个名为'测试项目'的项目", "create_project"),
-        ("更新项目'测试项目'的状态", "update_project"),
-        ("删除项目'测试项目'", "delete_project"),
-        ("查询项目'测试项目'的信息", "query_project"),
-        ("为项目'测试项目'创建一个任务", "create_task"),
-        ("更新项目'测试项目'中的任务", "update_task"),
-        ("删除项目'测试项目'中的任务", "delete_task"),
-        ("创建一个名为'测试大类'的项目大类", "create_category"),
-        ("更新项目大类'测试大类'", "update_category"),
-        ("删除项目大类'测试大类'", "delete_category"),
-        ("为项目'测试项目'分配大类'测试大类'", "assign_category"),
-        ("查询项目大类'测试大类'", "query_category"),
-        ("刷新项目'测试项目'的状态", "refresh_project_status"),
-        ("你好，今天天气怎么样", "chat")
-    ]
-    
-    for user_input, expected_intent in test_cases:
-        print(f"\n测试输入: {user_input}")
-        print(f"期望意图: {expected_intent}")
-        
-        response = requests.post(
-            f"{BASE_URL}/chat/langchain/messages",
-            json={"message": user_input, "session_id": f"test_session_{int(time.time())}"},
-            headers={"Content-Type": "application/json"}
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"响应状态: 成功")
-            print(f"响应内容: {result['data']['content']}")
-            print(f"是否需要确认: {result['data']['requires_confirmation']}")
-        else:
-            print(f"响应状态: 失败 ({response.status_code})")
-            print(f"错误信息: {response.text}")
+from backend.core.langchain_chat import get_langchain_chat
+from backend.models.test_database import get_test_db, init_test_db
 
-
-def test_multi_turn_conversation():
-    """
-    测试多轮对话功能
-    """
-    print("\n=== 测试多轮对话功能 ===")
+def test_basic_chat():
+    """测试基本聊天功能"""
+    print("=== 测试基本聊天功能 ===")
     
-    # 生成会话ID
-    session_id = f"test_session_{int(time.time())}"
-    print(f"会话ID: {session_id}")
+    # 初始化测试数据库
+    init_test_db()
     
-    # 第一轮：创建项目
-    print("\n第一轮对话:")
-    print("用户: 创建一个名为'测试项目'的项目")
-    
-    response = requests.post(
-        f"{BASE_URL}/chat/langchain/messages",
-        json={"message": "创建一个名为'测试项目'的项目", "session_id": session_id},
-        headers={"Content-Type": "application/json"}
-    )
-    
-    if response.status_code == 200:
-        result = response.json()
-        print(f"助手: {result['data']['content']}")
-        print(f"是否需要确认: {result['data']['requires_confirmation']}")
-    else:
-        print(f"响应状态: 失败 ({response.status_code})")
-        print(f"错误信息: {response.text}")
-    
-    # 等待1秒，模拟用户思考时间
-    time.sleep(1)
-    
-    # 第二轮：确认创建
-    print("\n第二轮对话:")
-    print("用户: 确认")
-    
-    response = requests.post(
-        f"{BASE_URL}/chat/langchain/messages",
-        json={"message": "确认", "session_id": session_id},
-        headers={"Content-Type": "application/json"}
-    )
-    
-    if response.status_code == 200:
-        result = response.json()
-        print(f"助手: {result['data']['content']}")
-        print(f"是否需要确认: {result['data']['requires_confirmation']}")
-    else:
-        print(f"响应状态: 失败 ({response.status_code})")
-        print(f"错误信息: {response.text}")
-    
-    # 获取对话历史
-    print("\n对话历史:")
-    response = requests.get(
-        f"{BASE_URL}/chat/langchain/history",
-        params={"session_id": session_id}
-    )
-    
-    if response.status_code == 200:
-        history = response.json()
-        if history['data']['items']:
-            print(f"对话历史条数: {len(history['data']['items'])}")
-            for i, item in enumerate(history['data']['items']):
-                role = "用户" if item['role'] == "user" else "助手"
-                print(f"{i+1}. {role}: {item['content'][:100]}..." if len(item['content']) > 100 else f"{i+1}. {role}: {item['content']}")
-        else:
-            print("对话历史为空")
-    else:
-        print(f"获取对话历史失败: {response.status_code}")
-
-
-def test_error_handling():
-    """
-    测试错误处理功能
-    """
-    print("\n=== 测试错误处理功能 ===")
-    
-    # 生成会话ID
-    session_id = f"test_session_{int(time.time())}"
-    print(f"会话ID: {session_id}")
-    
-    # 测试不存在的项目
-    print("\n测试不存在的项目:")
-    print("用户: 更新不存在的项目的状态")
-    
-    response = requests.post(
-        f"{BASE_URL}/chat/langchain/messages",
-        json={"message": "更新不存在的项目的状态", "session_id": session_id},
-        headers={"Content-Type": "application/json"}
-    )
-    
-    if response.status_code == 200:
-        result = response.json()
-        print(f"助手: {result['data']['content']}")
-        print(f"是否需要确认: {result['data']['requires_confirmation']}")
-    else:
-        print(f"响应状态: 失败 ({response.status_code})")
-        print(f"错误信息: {response.text}")
-
-
-if __name__ == "__main__":
-    print("开始LangChain聊天功能测试")
-    print("=" * 80)
+    # 获取测试数据库会话
+    db = next(get_test_db())
     
     try:
-        test_intent_classification()
-        test_multi_turn_conversation()
-        test_error_handling()
+        # 初始化LangChain对话系统
+        chat_system = get_langchain_chat(db)
+        print("✅ LangChain对话系统初始化成功")
+        
+        # 测试基本问候
+        response = chat_system.chat("你好")
+        print(f"你好 → {response}")
+        
+        # 测试查询项目
+        response = chat_system.chat("现在有些什么项目")
+        print(f"现在有些什么项目 → {response}")
+        
+        # 测试项目不存在的情况
+        response = chat_system.chat("查询项目test2")
+        print(f"查询项目test2 → {response}")
+        
+        # 测试多轮对话（使用指代）
+        response = chat_system.chat("把test1的开始时间设置为今天")
+        print(f"把test1的开始时间设置为今天 → {response}")
+        
+        # 测试查询更新后的项目
+        response = chat_system.chat("查询test1的信息")
+        print(f"查询test1的信息 → {response}")
+        
+        print("✅ 基本聊天功能测试完成")
+        
     except Exception as e:
-        print(f"测试过程中出现错误: {str(e)}")
+        print(f"❌ 测试失败：{e}")
+    finally:
+        # 关闭数据库连接
+        db.close()
+
+def test_intent_recognition():
+    """测试意图识别功能"""
+    print("\n=== 测试意图识别功能 ===")
     
-    print("\n" + "=" * 80)
-    print("LangChain聊天功能测试结束")
+    # 初始化测试数据库
+    init_test_db()
+    
+    # 获取测试数据库会话
+    db = next(get_test_db())
+    
+    try:
+        # 初始化LangChain对话系统
+        chat_system = get_langchain_chat(db)
+        
+        # 测试各种意图
+        test_cases = [
+            "创建一个新项目，名称为测试项目",
+            "删除项目test1",
+            "创建一个任务，项目是test1，任务名称是测试任务",
+            "更新任务，项目是test1，任务名称是测试任务，状态设置为completed",
+            "创建一个项目大类，名称为研发",
+            "为项目test1分配大类研发"
+        ]
+        
+        for test_case in test_cases:
+            response = chat_system.chat(test_case)
+            print(f"{test_case} → {response}")
+        
+        print("✅ 意图识别功能测试完成")
+        
+    except Exception as e:
+        print(f"❌ 测试失败：{e}")
+    finally:
+        # 关闭数据库连接
+        db.close()
+
+def main():
+    print("=== LangChain对话系统自动化测试 ===")
+    
+    # 检查DOUBAO API密钥
+    if not os.getenv('DOUBAO_API_KEY'):
+        print("⚠️  警告：未设置DOUBAO API密钥，意图识别功能将不可用")
+        print("请设置环境变量 DOUBAO_API_KEY 后再运行")
+        return
+    
+    # 运行测试
+    test_basic_chat()
+    test_intent_recognition()
+    
+    print("\n=== 测试完成 ===")
+
+if __name__ == "__main__":
+    main()

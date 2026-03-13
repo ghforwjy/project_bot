@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-12T15:25:57.247416",
+  "end_time": "2026-03-12T15:26:04.204029",
+  "duration": 6.956613,
+  "total": 1,
+  "passed": 1,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "test_cases": [
+    {
+      "name": "聊天/其他",
+      "description": "测试聊天功能",
+      "inputs": [
+        "你好"
+      ],
+      "expected": [
+        "你好"
+      ],
+      "results": [
+        "你好呀！有项目、项目大类或者任务管理方面的问题都能跟我说哦。 "
+      ],
+      "passed": true
+    }
+  ]
+}

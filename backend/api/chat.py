@@ -590,57 +590,79 @@ async def send_message(
             project_service = get_project_service(db)
             
             # 确认轮次检查：当requires_confirmation为True时，检查任务是否存在
+            # 重要：只有在更新或删除任务时才需要检查任务是否存在
+            # 创建任务时任务本来就不应该存在，不需要查找相似任务
             if requires_confirmation:
-                logger.info(f"[api.chat] requires_confirmation=True, 检查任务是否存在")
+                logger.info(f"[api.chat] requires_confirmation=True, 检查是否需要查找相似任务")
                 import re
                 from models.entities import Project, Task
                 
-                # 从ai_content中提取项目名和任务名
-                # 匹配多种格式：
-                # 1. 项目'项目名'中有个与之相似的任务'任务名'
-                # 2. 我将更新'项目A'中的'任务B'任务
-                # 3. 我将删除'项目X'中的'任务Y'任务
-                # 4. 在'投资交易优化'项目中没有找到'下午1点左右偶发卡顿'任务
-                pattern = r"'([^']+)'(?:项目|中).*?'([^']+)'"
-                match = re.search(pattern, ai_content)
+                # 从ai_content中推断意图（确认轮时AI返回的JSON中没有intent字段）
+                # 通过关键词判断用户是要创建、更新还是删除任务
+                intent_from_content = None
+                if '创建' in ai_content or '新建' in ai_content or '添加' in ai_content or '增加' in ai_content:
+                    intent_from_content = 'create_task'
+                elif '更新' in ai_content or '修改' in ai_content or '更改' in ai_content:
+                    intent_from_content = 'update_task'
+                elif '删除' in ai_content or '移除' in ai_content:
+                    intent_from_content = 'delete_task'
                 
-                if match:
-                    project_name = match.group(1)
-                    task_name = match.group(2)
-                    logger.info(f"[api.chat] 从ai_content提取: 项目={project_name}, 任务={task_name}")
+                logger.info(f"[api.chat] 从content推断的意图: {intent_from_content}")
+                
+                # 只有在更新或删除任务时才检查任务是否存在并查找相似任务
+                if intent_from_content in ['update_task', 'delete_task']:
+                    logger.info(f"[api.chat] 意图是{intent_from_content}，需要检查任务是否存在")
                     
-                    # 查找项目
-                    project = project_service.db.query(Project).filter(Project.name == project_name).first()
+                    # 从ai_content中提取项目名和任务名
+                    # 匹配多种格式：
+                    # 1. 项目'项目名'中有个与之相似的任务'任务名'
+                    # 2. 我将更新'项目A'中的'任务B'任务
+                    # 3. 我将删除'项目X'中的'任务Y'任务
+                    # 4. 在'投资交易优化'项目中没有找到'下午1点左右偶发卡顿'任务
+                    pattern = r"'([^']+)'(?:项目|中).*?'([^']+)'"
+                    match = re.search(pattern, ai_content)
                     
-                    if project:
-                        # 查找任务是否存在
-                        existing_task = project_service.db.query(Task).filter(
-                            Task.project_id == project.id,
-                            Task.name == task_name
-                        ).first()
+                    if match:
+                        project_name = match.group(1)
+                        task_name = match.group(2)
+                        logger.info(f"[api.chat] 从ai_content提取: 项目={project_name}, 任务={task_name}")
                         
-                        logger.info(f"[api.chat] 任务存在检查: existing_task={'存在' if existing_task else '不存在'}")
+                        # 查找项目
+                        project = project_service.db.query(Project).filter(Project.name == project_name).first()
                         
-                        if not existing_task:
-                            # 任务不存在，查找相似任务
-                            similar_tasks = project_service.find_similar_tasks(project.id, task_name)
-                            logger.info(f"[api.chat] 找到相似任务: {similar_tasks[:3]}..." if len(similar_tasks) > 3 else f"[api.chat] 找到相似任务: {similar_tasks}")
+                        if project:
+                            # 查找任务是否存在
+                            existing_task = project_service.db.query(Task).filter(
+                                Task.project_id == project.id,
+                                Task.name == task_name
+                            ).first()
                             
-                            # 修改AI回复，提示任务不存在
-                            ai_content = f"我没有找到名为'{task_name}'的任务。"
-                            if similar_tasks:
-                                ai_content += f"\n您是否指的是以下任务？"
-                                for i, suggestion in enumerate(similar_tasks, 1):
-                                    ai_content += f"\n{i}. {suggestion}"
-                                ai_content += f"\n\n请确认是哪个任务，或者提供正确的任务名称。"
-                            else:
-                                ai_content += f"\n项目中没有任务，请先创建任务。"
+                            logger.info(f"[api.chat] 任务存在检查: existing_task={'存在' if existing_task else '不存在'}")
                             
-                            # 不需要确认按钮
-                            requires_confirmation = False
-                            logger.info(f"[api.chat] 任务不存在，返回建议列表，requires_confirmation=False")
+                            if not existing_task:
+                                # 任务不存在，查找相似任务
+                                similar_tasks = project_service.find_similar_tasks(project.id, task_name)
+                                logger.info(f"[api.chat] 找到相似任务: {similar_tasks[:3]}..." if len(similar_tasks) > 3 else f"[api.chat] 找到相似任务: {similar_tasks}")
+                                
+                                # 修改AI回复，提示任务不存在
+                                ai_content = f"我没有找到名为'{task_name}'的任务。"
+                                if similar_tasks:
+                                    ai_content += f"\n您是否指的是以下任务？"
+                                    for i, suggestion in enumerate(similar_tasks, 1):
+                                        ai_content += f"\n{i}. {suggestion}"
+                                    ai_content += f"\n\n请确认是哪个任务，或者提供正确的任务名称。"
+                                else:
+                                    ai_content += f"\n项目中没有任务，请先创建任务。"
+                                
+                                # 不需要确认按钮
+                                requires_confirmation = False
+                                logger.info(f"[api.chat] 任务不存在，返回建议列表，requires_confirmation=False")
+                    else:
+                        logger.info(f"[api.chat] 无法从ai_content提取项目名和任务名")
+                elif intent_from_content == 'create_task':
+                    logger.info(f"[api.chat] 意图是create_task，不需要检查任务是否存在，继续正常流程")
                 else:
-                    logger.info(f"[api.chat] 无法从ai_content提取项目名和任务名")
+                    logger.info(f"[api.chat] 无法推断意图或不是任务操作，跳过任务存在检查")
             else:
                 # 只有当不需要确认时才执行指令
                 if ai_instructions:
