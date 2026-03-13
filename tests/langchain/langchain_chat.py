@@ -10,10 +10,11 @@ from typing import Dict, Any, List, Optional
 
 # 加载环境变量
 from dotenv import load_dotenv
-load_dotenv('..\..\.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env'))
 
-# 添加backend目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 添加backend目录到Python路径（当前在tests/langchain/，backend在../../backend）
+backend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'backend')
+sys.path.insert(0, backend_path)
 
 from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
@@ -80,35 +81,11 @@ class LangChainChat:
         # 获取最后一条用户消息
         user_message = state.messages[-1].content if state.messages else ""
         
-        # 检查是否是多轮确认对话
-        # 如果用户说"是的"、"确认"等，且上一轮是项目不存在的提示
-        confirmation_keywords = ["是的", "确认", "没错", "对的", "是", "好", "可以"]
-        if user_message.strip() in confirmation_keywords:
-            # 检查上一轮对话的上下文
-            if len(state.messages) >= 2:
-                # 获取上一轮系统的回复
-                last_system_message = None
-                for msg in reversed(state.messages[:-1]):
-                    if msg.role == "system" or msg.role == "assistant":
-                        last_system_message = msg.content
-                        break
-                
-                # 检查上一轮是否是项目不存在的提示
-                if last_system_message and "没有找到名为" in last_system_message and "您是否指的是" in last_system_message:
-                    # 提取建议的项目名称
-                    import re
-                    suggested_projects = re.findall(r'\d+\.\s*(\S+)', last_system_message)
-                    if suggested_projects:
-                        # 用户确认了建议的项目，执行查询操作
-                        return {
-                            "intent": "query_project",
-                            "confidence": 0.95,
-                            "data": {
-                                "project_name": suggested_projects[0],
-                                "user_message": user_message,
-                                "confirmation": True
-                            }
-                        }
+        # 构建对话历史（用于大模型理解上下文）
+        conversation_history = ""
+        for msg in state.messages[:-1]:  # 排除当前消息
+            role = "用户" if msg.role == "user" else "助手"
+            conversation_history += f"{role}: {msg.content}\n"
         
         # 意图类型定义
         intent_types = {
@@ -136,13 +113,21 @@ class LangChainChat:
         system_prompt = f"""
 你是一个项目管理系统的意图分类器，负责分析用户输入并识别其意图。
 
-请根据以下用户输入，识别其意图类型，并提取相关数据。
+请根据对话历史和当前用户输入，识别其意图类型，并提取相关数据。
+
+对话历史：
+{conversation_history if conversation_history else "（无历史对话）"}
+
+当前用户输入：
+{user_message}
 
 可用的意图类型（请严格使用以下键名）：
 {intent_types_str}
 
-用户输入：
-{user_message}
+重要提示：
+- 请结合对话历史理解用户的意图，特别是当用户输入是确认词（如"是的"、"确认"、"没错"等）时
+- 如果用户说"是的"、"确认"等，而上一轮系统提示了项目不存在并给出了建议项目列表，请识别为"query_project"意图，并提取建议的第一个项目名
+- 如果用户输入包含指代词（如"它"、"这个"、"那个"等），请根据对话历史确定指代的实体
 
 请以JSON格式返回分类结果，包含以下字段：
 - intent: 意图类型（必须从上面的列表中选择键名，如"create_project"）
@@ -174,6 +159,19 @@ class LangChainChat:
     "category_name": "研发"
   }}
 }}
+
+{{
+  "intent": "assign_category",
+  "confidence": 0.95,
+  "data": {{
+    "project_name": "测试项目",
+    "category_name": "研发"
+  }}
+}}
+
+**重要提示**：
+- 对于"为项目XXX分配大类YYY"的输入，category_name应该是"YYY"，而不是"大类YYY"
+- 例如"为项目测试项目分配大类研发"，应该提取project_name="测试项目"，category_name="研发"
 
 {{
   "intent": "create_task",
@@ -518,6 +516,21 @@ class LangChainChat:
                 "last_category": data.get("last_category", state.last_category)
             }
     
+    def _normalize_param(self, param, default=None):
+        """
+        标准化参数：如果是列表则取第一个元素，否则返回原值
+        
+        Args:
+            param: 参数值（可能是字符串或列表）
+            default: 默认值
+            
+        Returns:
+            标准化后的参数值
+        """
+        if isinstance(param, list):
+            return param[0] if param else default
+        return param if param is not None else default
+    
     def _execute_business_logic(self, state: ConversationState) -> Dict[str, Any]:
         """执行业务逻辑"""
         intent = state.intent
@@ -550,6 +563,13 @@ class LangChainChat:
                     elif result.get("data"):
                         # 使用统一的响应生成方法
                         user_message = data.get("user_message", "")
+                        
+                        # 如果用户输入是确认词，构建一个更明确的问题
+                        confirmation_keywords = ["是的", "确认", "没错", "对的", "是", "好", "可以"]
+                        if user_message.strip() in confirmation_keywords:
+                            # 使用项目名称构建问题
+                            user_message = f"查询项目{project_name}的信息"
+                        
                         natural_response = self._generate_natural_language_response(
                             user_message, 
                             result, 
@@ -690,18 +710,31 @@ class LangChainChat:
             elif intent == "create_category":
                 # 调试信息
                 print(f"创建项目大类数据: {data}")
+                # 标准化参数：处理列表情况
+                if "category_name" in data:
+                    data["category_name"] = self._normalize_param(data.get("category_name"))
+                if "name" in data:
+                    data["name"] = self._normalize_param(data.get("name"))
                 result = project_service.create_category(data)
             elif intent == "update_category":
+                # 标准化参数
+                if "category_name" in data:
+                    data["category_name"] = self._normalize_param(data.get("category_name"))
+                if "name" in data:
+                    data["name"] = self._normalize_param(data.get("name"))
                 result = project_service.update_category(data)
             elif intent == "delete_category":
-                category_name = data.get("category_name")
+                category_name = self._normalize_param(data.get("category_name"))
                 result = project_service.delete_category(category_name)
             elif intent == "assign_category":
-                project_name = data.get("project_name")
-                category_name = data.get("category_name")
+                project_name = self._normalize_param(data.get("project_name"))
+                category_name = self._normalize_param(data.get("category_name"))
+                # 处理"大类XXX"的情况，提取真正的类别名
+                if category_name and category_name.startswith("大类"):
+                    category_name = category_name[2:]  # 去掉"大类"前缀
                 result = project_service.assign_category(project_name, category_name)
             elif intent == "query_category":
-                category_name = data.get("category_name")
+                category_name = self._normalize_param(data.get("category_name"))
                 # 如果category_name是泛指词（如"大类"、"所有"等），查询所有大类
                 generic_terms = ["大类", "所有", "全部", "有哪些"]
                 if category_name and category_name not in generic_terms:
@@ -1024,9 +1057,9 @@ class LangChainChat:
                     
                     print(f"[DEBUG] 数据量统计：大类={total_categories}, 项目={total_projects}, 任务={total_tasks}")
                     
-                    # 设置阈值
-                    CATEGORY_THRESHOLD = 10
-                    PROJECT_THRESHOLD = 50
+                    # 设置阈值（降低阈值以便在测试环境中触发分层摘要）
+                    CATEGORY_THRESHOLD = 5
+                    PROJECT_THRESHOLD = 3
                     
                     # 判断是否超过阈值
                     is_large_data = total_categories > CATEGORY_THRESHOLD or total_projects > PROJECT_THRESHOLD

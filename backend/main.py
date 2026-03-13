@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api import chat, config, gantt, project, task, analytics, langchainChat
+from api import chat, config, gantt, project, task, analytics
 # from voice import voice_api
 from models.database import init_db
 
@@ -79,7 +79,6 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
-app.include_router(langchainChat.router, prefix="/api/v1", tags=["langchain_chat"])
 app.include_router(project.router, prefix="/api/v1", tags=["project"])
 app.include_router(task.router, prefix="/api/v1", tags=["task"])
 app.include_router(gantt.router, prefix="/api/v1", tags=["gantt"])

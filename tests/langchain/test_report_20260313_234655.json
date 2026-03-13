@@ -1,0 +1,25 @@
+{
+  "start_time": "2026-03-13T23:46:51.415546",
+  "end_time": "2026-03-13T23:46:55.953937",
+  "duration": 4.538391,
+  "total": 1,
+  "passed": 0,
+  "failed": 1,
+  "pass_rate": 0.0,
+  "test_cases": [
+    {
+      "name": "为项目分配大类",
+      "description": "测试为项目分配大类功能",
+      "inputs": [
+        "为项目测试项目分配大类研发"
+      ],
+      "expected": [
+        "成功指定"
+      ],
+      "results": [
+        "项目大类 '大类研发' 不存在"
+      ],
+      "passed": false
+    }
+  ]
+}
